@@ -1,6 +1,7 @@
 # 📦 CleanStock - Sistema de Gestión de Inventario y Ventas
 
 [![Flutter](https://img.shields.io/badge/Flutter-%2302569B.svg?style=for-the-badge&logo=Flutter&logoColor=white)](https://flutter.dev/)
+[![Firebase](https://img.shields.io/badge/Firebase-FFCA28?style=for-the-badge&logo=firebase&logoColor=black)](https://firebase.google.com/)
 [![VS Code](https://img.shields.io/badge/VS%20Code-0078d7.svg?style=for-the-badge&logo=visual-studio-code&logoColor=white)](https://code.visualstudio.com/)
 
 **CleanStock** es una aplicación integral diseñada para la gestión eficiente de inventarios, control de ventas y administración de proveedores. 
@@ -36,6 +37,19 @@ Construida con Flutter, la aplicación está **optimizada exclusivamente para ta
 | Centro de Alertas | Gestión de Proveedores |
 | :---: | :---: |
 | ![Alertas](ruta/a/alertas.png) | ![Proveedores](ruta/a/proveedores.png) |
+
+---
+
+## 🔥 Integración con Firebase (Roadmap)
+
+Actualmente nos encontramos trabajando en el backend de la aplicación. El objetivo es configurar el proyecto de Firebase, activar la base de datos Cloud Firestore y definir la estructura inicial de las colecciones para el gestor de ventas, inventario y pedidos, asegurando la optimización de lectura/escritura bajo el plan gratuito (Spark).
+
+**Tareas pendientes:**
+
+- [ ] Diseño de Base de Datos (Diagrama físico)
+- [ ] Crear el proyecto en FireBase y vinculación a la aplicación móvil.
+- [ ] Habilitar **Firebase Authentication**.
+- [ ] Configurar el SDK de Firebase en el entorno de desarrollo de la app móvil.
 
 ---
 
