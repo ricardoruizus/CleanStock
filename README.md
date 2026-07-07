@@ -54,4 +54,4 @@ Asegúrate de tener instalado lo siguiente en tu entorno de desarrollo:
 
 1. **Clona este repositorio:**
    ```bash
-   git clone [https://github.com/](https://github.com/)[tu-usuario]/cleanstock.git
+   git clone https://github.com/ricardoruizus/CleanStock.git
