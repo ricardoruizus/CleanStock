@@ -8,7 +8,7 @@
 
 Construida con Flutter, la aplicación está **optimizada exclusivamente para tablets**, ofreciendo una experiencia de usuario fluida, con una interfaz minimalista, limpia y fácil de navegar que aprovecha al máximo el espacio en pantalla.
 
----
+
 
 ## ✨ Características Principales
 
@@ -20,7 +20,7 @@ Construida con Flutter, la aplicación está **optimizada exclusivamente para ta
 * **Diseño Minimalista:** Interfaz cuidada con paletas de colores suaves y tipografía clara, inspirada en los estándares de Cupertino y Material Design para reducir la fatiga visual del usuario.
 * **Modo Claro / Oscuro:** Soporte nativo para cambio de tema desde la configuración.
 
----
+
 
 ## 📸 Vistas de la Aplicación
 
@@ -38,7 +38,7 @@ Construida con Flutter, la aplicación está **optimizada exclusivamente para ta
 | :---: | :---: |
 | ![Alertas](ruta/a/alertas.png) | ![Proveedores](ruta/a/proveedores.png) |
 
----
+
 
 ## 🔥 Integración con Firebase (Roadmap)
 
@@ -51,7 +51,7 @@ Actualmente nos encontramos trabajando en el backend de la aplicación. El objet
 - [ ] Habilitar **Firebase Authentication**.
 - [ ] Configurar el SDK de Firebase en el entorno de desarrollo de la app móvil.
 
----
+
 
 ## 🛠️ Requisitos Previos
 
@@ -62,10 +62,28 @@ Asegúrate de tener instalado lo siguiente en tu entorno de desarrollo:
 * Extensiones de VS Code: `Flutter` y `Dart`.
 * Emulador de Tablet configurado (ej. iPad Simulator o Android Tablet AVD).
 
----
+
 
 ## 🚀 Configuración y Ejecución (VS Code)
 
 1. **Clona este repositorio:**
    ```bash
    git clone https://github.com/ricardoruizus/CleanStock.git
+
+# clean_stock
+
+A new Flutter project.
+
+## Getting Started
+
+This project is a starting point for a Flutter application.
+
+A few resources to get you started if this is your first Flutter project:
+
+- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
+- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
+- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+
+For help getting started with Flutter development, view the
+[online documentation](https://docs.flutter.dev/), which offers tutorials,
+samples, guidance on mobile development, and a full API reference.
