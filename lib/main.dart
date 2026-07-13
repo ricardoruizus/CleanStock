@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:clean_stock/presentacion/pantallas/configuracion/inicio_sesion.dart'; 
 
 void main() {
-  runApp(const CleanStockApp());
+  runApp(const MyApp());
 }
 
-class CleanStockApp extends StatelessWidget {
-  const CleanStockApp({Key? key}) : super(key: key);
+class MyApp extends StatelessWidget {
+  const MyApp({Key? key}) : super(key: key);
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
