@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import '../alertas/alertas.dart'; 
+import '../ventas/ventas.dart';
+// import '../inventario/inventario.dart'; // Cuando la tengas lista
+// import '../proveedores/proveedores.dart'; // Cuando la tengas lista
 
 /// Modelo de datos interno para cada módulo/tarjeta del Dashboard
 class DashboardCardData {
@@ -456,43 +460,45 @@ class _CleanStockHomeScreenState extends State<CleanStockHomeScreen> {
     );
   }
 
-  void _onCardPressed(BuildContext context, DashboardCardData card) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (context) {
-        return Container(
-          decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.only(topLeft: Radius.circular(32), topRight: Radius.circular(32))),
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2))),
-              const SizedBox(height: 24),
-              Container(width: 64, height: 64, decoration: BoxDecoration(color: card.circleBgColor, shape: BoxShape.circle), child: Icon(card.mainIcon, color: primaryColor, size: 30)),
-              const SizedBox(height: 16),
-              Text(card.title, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF1E293B))),
-              Text(card.subtitle, style: const TextStyle(fontSize: 14, color: Color(0xFF64748B))),
-              const SizedBox(height: 18),
-              const Text('Puedes enlazar este evento para abrir la ruta correspondiente de tu base de datos o sistema.', textAlign: TextAlign.center, style: TextStyle(fontSize: 14, color: Color(0xFF64748B), height: 1.5)),
-              const SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(backgroundColor: primaryColor, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)), padding: const EdgeInsets.symmetric(vertical: 14)),
-                  onPressed: () {
-                    Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Abriendo el módulo de: ${card.title}'), backgroundColor: primaryColor, behavior: SnackBarBehavior.floating));
-                  },
-                  child: const Text('Entrar al Módulo', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
-                ),
-              ),
-              const SizedBox(height: 8),
-            ],
+void _onCardPressed(BuildContext context, DashboardCardData card) {
+    Widget pantallaDestino;
+
+    // Evaluamos el 'id' de la tarjeta que se presionó
+    switch (card.id) {
+      case 'ventas':
+        // Enlazamos a la pantalla de Ventas (Punto de Venta) que maquetamos
+        pantallaDestino = const VentasScreen();
+        break;
+      
+      // Aquí irás agregando las demás pantallas conforme las vayas creando
+      /*
+      case 'inventario':
+        pantallaDestino = const InventarioScreen();
+        break;
+      case 'proveedores':
+        pantallaDestino = const ProveedoresScreen();
+        break;
+      case 'registro_ventas':
+        pantallaDestino = const HistorialVentasScreen();
+        break;
+      */
+      
+      default:
+        // Si la pantalla aún no está creada, mostramos un mensaje temporal
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Módulo "${card.title}" en construcción.'),
+            backgroundColor: const Color(0xFF64748B),
+            behavior: SnackBarBehavior.floating,
           ),
         );
-      },
+        return; // Salimos de la función sin navegar
+    }
+
+    // Navegamos a la pantalla seleccionada
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => pantallaDestino),
     );
   }
 }
