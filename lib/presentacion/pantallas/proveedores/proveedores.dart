@@ -1,23 +1,25 @@
 import 'package:flutter/material.dart';
+// Importa el archivo de tu inicio de sesión (ajusta la ruta exacta de tu proyecto)
 import 'package:clean_stock/presentacion/pantallas/configuracion/inicio_sesion.dart'; 
 
 void main() {
-  runApp(const CleanStockApp());
+  runApp(const MyApp());
 }
 
-class CleanStockApp extends StatelessWidget {
-  const CleanStockApp({Key? key}) : super(key: key);
+class MyApp extends StatelessWidget {
+  const MyApp({Key? key}) : super(key: key);
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'CleanStock',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF62A5DF)),
+        primarySwatch: Colors.blue,
         useMaterial3: true,
       ),
-      home: const LoginPantalla(), // Abre directamente tu inicio de sesión
+      // CORRECCIÓN: El nombre correcto de la clase según tu código es LoginPantalla
+      home: const LoginPantalla(), 
     );
   }
 }

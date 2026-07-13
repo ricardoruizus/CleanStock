@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'registro.dart'; // Importación corregida con el nombre exacto de tu archivo
-
+import 'registro.dart'; // Tu archivo de registro[cite: 4]
+import 'package:clean_stock/presentacion/pantallas/inicio/inicio_home_screen.dart';
 class LoginPantalla extends StatefulWidget {
   const LoginPantalla({super.key});
 
@@ -23,6 +23,7 @@ class _LoginPantallaState extends State<LoginPantalla> {
 
   void _submitForm() {
     if (_formKey.currentState!.validate()) {
+      // Mensaje emergente informativo
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Iniciando sesión: ${_idController.text}'),
@@ -30,6 +31,12 @@ class _LoginPantallaState extends State<LoginPantalla> {
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
+      );
+
+      // CORRECCIÓN: Navegación hacia CleanStockHomeScreen reemplazando la pantalla actual
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const CleanStockHomeScreen()),
       );
     }
   }
