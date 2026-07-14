@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
-import 'registro.dart'; // Tu archivo de registro[cite: 4]
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'registro.dart';
 import 'package:clean_stock/presentacion/pantallas/inicio/inicio_home_screen.dart';
+
 class LoginPantalla extends StatefulWidget {
   const LoginPantalla({super.key});
 
@@ -10,9 +12,10 @@ class LoginPantalla extends StatefulWidget {
 
 class _LoginPantallaState extends State<LoginPantalla> {
   final _formKey = GlobalKey<FormState>();
-  final _idController = TextEditingController();
+  final _idController = TextEditingController(); // Regresamos a ID empleado[cite: 3]
   final _passwordController = TextEditingController();
   bool _isPasswordVisible = false;
+  bool _isLoading = false;
 
   @override
   void dispose() {
@@ -21,30 +24,70 @@ class _LoginPantallaState extends State<LoginPantalla> {
     super.dispose();
   }
 
-  void _submitForm() {
-    if (_formKey.currentState!.validate()) {
-      // Mensaje emergente informativo
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Iniciando sesión: ${_idController.text}'),
-          backgroundColor: const Color(0xFF62A5DF),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ),
-      );
+  Future<void> _submitForm() async {
+    if (!_formKey.currentState!.validate()) return;
 
-      // CORRECCIÓN: Navegación hacia CleanStockHomeScreen reemplazando la pantalla actual
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const CleanStockHomeScreen()),
-      );
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      // Consultamos la tabla personalizada 'usuarios' buscando el id_empleado
+      final List<dynamic> response = await Supabase.instance.client
+          .from('usuarios')
+          .select()
+          .eq('id_empleado', _idController.text.trim());
+
+      if (response.isEmpty) {
+        throw 'El ID de empleado no está registrado.';
+      }
+
+      final usuario = response.first;
+
+      // Validación simple de contraseña (Nota: En producción se recomienda verificar con un hash)
+      if (usuario['contrasena_hash'] != _passwordController.text.trim()) {
+        throw 'La contraseña es incorrecta.';
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Bienvenido, ${usuario['nombre_completo']}'),
+            backgroundColor: const Color(0xFF2E9E8A),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const CleanStockHomeScreen()),
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(error.toString()),
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFEBF2FA), // Fondo azul pastel de Cleanstock
+      backgroundColor: const Color(0xFFEBF2FA),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -58,8 +101,6 @@ class _LoginPantallaState extends State<LoginPantalla> {
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     const SizedBox(height: 10),
-                    
-                    // Logo de la marca (Squircle azul)
                     Container(
                       width: 80,
                       height: 80,
@@ -76,8 +117,6 @@ class _LoginPantallaState extends State<LoginPantalla> {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    
-                    // Identificador de la marca
                     const Text(
                       'CLEANSTOCK',
                       style: TextStyle(
@@ -88,8 +127,6 @@ class _LoginPantallaState extends State<LoginPantalla> {
                       ),
                     ),
                     const SizedBox(height: 6),
-                    
-                    // Título de la pantalla
                     const Text(
                       'Inicio de sesión',
                       style: TextStyle(
@@ -100,8 +137,6 @@ class _LoginPantallaState extends State<LoginPantalla> {
                       ),
                     ),
                     const SizedBox(height: 32),
-                    
-                    // Tarjeta contenedora de inputs unificados
                     Container(
                       decoration: BoxDecoration(
                         color: Colors.white,
@@ -120,7 +155,6 @@ class _LoginPantallaState extends State<LoginPantalla> {
                       ),
                       child: Column(
                         children: [
-                          // Campo ID empleado
                           Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 10.0),
                             child: TextFormField(
@@ -153,14 +187,11 @@ class _LoginPantallaState extends State<LoginPantalla> {
                               },
                             ),
                           ),
-                          
                           const Divider(
                             height: 1,
                             thickness: 1,
                             color: Color(0xFFEBF2FA),
                           ),
-                          
-                          // Campo Contraseña
                           Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 10.0),
                             child: TextFormField(
@@ -203,9 +234,6 @@ class _LoginPantallaState extends State<LoginPantalla> {
                                 if (value == null || value.isEmpty) {
                                   return 'Por favor ingresa tu contraseña';
                                 }
-                                if (value.length < 4) {
-                                  return 'Mínimo 4 caracteres';
-                                }
                                 return null;
                               },
                             ),
@@ -214,13 +242,11 @@ class _LoginPantallaState extends State<LoginPantalla> {
                       ),
                     ),
                     const SizedBox(height: 24),
-                    
-                    // Botón Iniciar sesión
                     SizedBox(
                       width: double.infinity,
                       height: 54,
                       child: ElevatedButton(
-                        onPressed: _submitForm,
+                        onPressed: _isLoading ? null : _submitForm,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF62A5DF),
                           foregroundColor: Colors.white,
@@ -229,19 +255,23 @@ class _LoginPantallaState extends State<LoginPantalla> {
                             borderRadius: BorderRadius.circular(18),
                           ),
                         ),
-                        child: const Text(
-                          'Iniciar sesión',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 0.5,
-                          ),
-                        ),
+                        child: _isLoading
+                            ? const SizedBox(
+                                width: 24,
+                                height: 24,
+                                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
+                              )
+                            : const Text(
+                                'Iniciar sesión',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
                       ),
                     ),
                     const SizedBox(height: 20),
-                    
-                    // ¿Olvidaste tu contraseña?
                     TextButton(
                       onPressed: () {},
                       child: const Text(
@@ -253,10 +283,7 @@ class _LoginPantallaState extends State<LoginPantalla> {
                         ),
                       ),
                     ),
-                    
                     const SizedBox(height: 12),
-                    
-                    // Enlace a Registro
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [

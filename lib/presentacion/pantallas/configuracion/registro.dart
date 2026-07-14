@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class RegistroPantalla extends StatefulWidget {
   const RegistroPantalla({super.key});
@@ -14,6 +16,7 @@ class _RegistroPantallaState extends State<RegistroPantalla> {
   final _correoController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isPasswordVisible = false;
+  bool _isLoading = false;
 
   @override
   void dispose() {
@@ -24,23 +27,108 @@ class _RegistroPantallaState extends State<RegistroPantalla> {
     super.dispose();
   }
 
-  void _submitForm() {
-    if (_formKey.currentState!.validate()) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Cuenta creada para: ${_nombreController.text}'),
-          backgroundColor: const Color(0xFF62A5DF),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ),
-      );
+  Future<void> _submitForm() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      String generadoIdEmpleado = 'EMP${DateTime.now().millisecondsSinceEpoch.toString().substring(8)}';
+
+      await Supabase.instance.client.from('usuarios').insert({
+        'id_empleado': generadoIdEmpleado,
+        'nombre_completo': _nombreController.text.trim(),
+        'edad': int.tryParse(_edadController.text.trim()),
+        'correo': _correoController.text.trim(),
+        'contrasena_hash': _passwordController.text.trim(),
+        'rol': 'empleado',
+        'modo_diseno': 'light'
+      });
+
+      if (mounted) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => AlertDialog(
+            title: const Text('Registro Exitoso'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('Tu cuenta ha sido creada con éxito.\n\nTu ID de Empleado es:'),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEBF2FA),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFD0E1F4)),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        generadoIdEmpleado,
+                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1E2E40), letterSpacing: 1),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.copy, color: Color(0xFF62A5DF)),
+                        tooltip: 'Copiar ID',
+                        onPressed: () {
+                          Clipboard.setData(ClipboardData(text: generadoIdEmpleado));
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('ID copiado al portapapeles'),
+                              duration: Duration(seconds: 2),
+                              behavior: SnackBarBehavior.floating,
+                            ),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const Text('Úsalo para iniciar sesión.'),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  Navigator.pop(context);
+                },
+                child: const Text('Entendido', style: TextStyle(fontWeight: FontWeight.bold)),
+              )
+            ],
+          ),
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al registrar: $error'),
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFEBF2FA), // Fondo azul pastel de Cleanstock
+      backgroundColor: const Color(0xFFEBF2FA),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -54,50 +142,19 @@ class _RegistroPantallaState extends State<RegistroPantalla> {
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     const SizedBox(height: 10),
-                    
-                    // Logo de la marca (Squircle azul)
                     Container(
                       width: 80,
                       height: 80,
                       decoration: BoxDecoration(
                         color: const Color(0xFF62A5DF),
                         borderRadius: BorderRadius.circular(22),
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(0xFF62A5DF).withOpacity(0.3),
-                            blurRadius: 16,
-                            offset: const Offset(0, 8),
-                          ),
-                        ],
                       ),
                     ),
                     const SizedBox(height: 16),
-                    
-                    // Identificador de la marca
-                    const Text(
-                      'CLEANSTOCK',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF2C5E8A),
-                        letterSpacing: 3.0,
-                      ),
-                    ),
+                    const Text('CLEANSTOCK', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF2C5E8A), letterSpacing: 3.0)),
                     const SizedBox(height: 6),
-                    
-                    // Título de la pantalla
-                    const Text(
-                      'Crear cuenta',
-                      style: TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.w800,
-                        color: Color(0xFF1E2E40),
-                        letterSpacing: -0.5,
-                      ),
-                    ),
+                    const Text('Crear cuenta', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800, color: Color(0xFF1E2E40))),
                     const SizedBox(height: 32),
-                    
-                    // Fila 1: Nombre y Edad (Distribuidos lado a lado)
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -106,12 +163,7 @@ class _RegistroPantallaState extends State<RegistroPantalla> {
                             label: 'Nombre',
                             hintText: 'Tu nombre completo',
                             controller: _nombreController,
-                            validator: (value) {
-                              if (value == null || value.trim().isEmpty) {
-                                  return 'Campo requerido';
-                              }
-                              return null;
-                            },
+                            validator: (value) => (value == null || value.trim().isEmpty) ? 'Campo requerido' : null,
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -122,13 +174,8 @@ class _RegistroPantallaState extends State<RegistroPantalla> {
                             controller: _edadController,
                             keyboardType: TextInputType.number,
                             validator: (value) {
-                              if (value == null || value.trim().isEmpty) {
-                                return 'Campo requerido';
-                              }
-                              final edad = int.tryParse(value);
-                              if (edad == null) {
-                                return 'Edad inválida';
-                              }
+                              if (value == null || value.trim().isEmpty) return 'Campo requerido';
+                              if (int.tryParse(value) == null) return 'Edad inválida';
                               return null;
                             },
                           ),
@@ -136,8 +183,6 @@ class _RegistroPantallaState extends State<RegistroPantalla> {
                       ],
                     ),
                     const SizedBox(height: 12),
-                    
-                    // Fila 2: Correo y Contraseña (Distribuidos lado a lado)
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -148,12 +193,8 @@ class _RegistroPantallaState extends State<RegistroPantalla> {
                             controller: _correoController,
                             keyboardType: TextInputType.emailAddress,
                             validator: (value) {
-                              if (value == null || value.trim().isEmpty) {
-                                return 'Campo requerido';
-                              }
-                              if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(value)) {
-                                return 'Correo inválido';
-                              }
+                              if (value == null || value.trim().isEmpty) return 'Campo requerido';
+                              if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(value)) return 'Correo inválido';
                               return null;
                             },
                           ),
@@ -166,77 +207,39 @@ class _RegistroPantallaState extends State<RegistroPantalla> {
                             controller: _passwordController,
                             obscureText: !_isPasswordVisible,
                             suffixIcon: GestureDetector(
-                              onTap: () {
-                                setState(() {
-                                  _isPasswordVisible = !_isPasswordVisible;
-                                });
-                              },
-                              child: Icon(
-                                _isPasswordVisible ? Icons.visibility : Icons.visibility_off,
-                                color: const Color(0xFF62A5DF),
-                                size: 18,
-                              ),
+                              onTap: () => setState(() => _isPasswordVisible = !_isPasswordVisible),
+                              child: Icon(_isPasswordVisible ? Icons.visibility : Icons.visibility_off, color: const Color(0xFF62A5DF), size: 18),
                             ),
-                            validator: (value) {
-                              if (value == null || value.isEmpty) {
-                                return 'Campo requerido';
-                              }
-                              if (value.length < 6) {
-                                return 'Mínimo 6 caracteres';
-                              }
-                              return null;
-                            },
+                            validator: (value) => (value == null || value.isEmpty || value.length < 4) ? 'Mínimo 4 caracteres' : null,
                           ),
                         ),
                       ],
                     ),
                     const SizedBox(height: 28),
-                    
-                    // Botón Confirmar registro
                     SizedBox(
                       width: double.infinity,
                       height: 54,
                       child: ElevatedButton(
-                        onPressed: _submitForm,
+                        onPressed: _isLoading ? null : _submitForm,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF62A5DF),
                           foregroundColor: Colors.white,
                           elevation: 0,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(18),
-                          ),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
                         ),
-                        child: const Text(
-                          'Confirmar registro',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 0.5,
-                          ),
-                        ),
+                        child: _isLoading
+                            ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5))
+                            : const Text('Confirmar registro', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
                       ),
                     ),
                     const SizedBox(height: 24),
-                    
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Text(
-                          '¿Ya tienes cuenta? ',
-                          style: TextStyle(color: Colors.grey, fontSize: 14),
-                        ),
+                        const Text('¿Ya tienes cuenta? ', style: TextStyle(color: Colors.grey, fontSize: 14)),
                         GestureDetector(
-                          onTap: () {
-                            Navigator.pop(context);
-                          },
-                          child: const Text(
-                            'Inicia sesión',
-                            style: TextStyle(
-                              color: Color(0xFF62A5DF),
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14,
-                            ),
-                          ),
+                          onTap: () => Navigator.pop(context),
+                          child: const Text('Inicia sesión', style: TextStyle(color: Color(0xFF62A5DF), fontWeight: FontWeight.bold, fontSize: 14)),
                         ),
                       ],
                     ),
@@ -250,7 +253,6 @@ class _RegistroPantallaState extends State<RegistroPantalla> {
     );
   }
 
-  // MÉTODO REUTILIZABLE REPARADO SIN EL ERROR DE ESCRITURA
   Widget _buildCustomInputField({
     required String label,
     required String hintText,
@@ -265,60 +267,27 @@ class _RegistroPantallaState extends State<RegistroPantalla> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: const Color(0xFFD0E1F4),
-          width: 1.5,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF1E2E40).withOpacity(0.02),
-            blurRadius: 6,
-            offset: const Offset(0, 3),
-          ),
-        ],
+        border: Border.all(color: const Color(0xFFD0E1F4), width: 1.5),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(
-            label,
-            style: const TextStyle(
-              color: Color(0xFF62A5DF),
-              fontSize: 11,
-              fontWeight: FontWeight.bold,
-              letterSpacing: 0.5,
-            ),
-          ),
+          Text(label, style: const TextStyle(color: Color(0xFF62A5DF), fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
           const SizedBox(height: 2),
           TextFormField(
             controller: controller,
             obscureText: obscureText,
             keyboardType: keyboardType,
-            style: const TextStyle(
-              fontSize: 15,
-              color: Color(0xFF1E2E40),
-              fontWeight: FontWeight.w500,
-            ),
+            style: const TextStyle(fontSize: 15, color: Color(0xFF1E2E40), fontWeight: FontWeight.w500),
             decoration: InputDecoration(
               isDense: true,
               contentPadding: EdgeInsets.zero,
               border: InputBorder.none,
               hintText: hintText,
-              hintStyle: const TextStyle(
-                color: Colors.grey,
-                fontSize: 14,
-              ),
-              suffixIcon: suffixIcon != null 
-                  ? Padding(
-                      padding: const EdgeInsets.only(left: 8.0),
-                      child: suffixIcon,
-                    )
-                  : null,
-              suffixIconConstraints: const BoxConstraints(
-                minHeight: 18,
-                minWidth: 18,
-              ),
+              hintStyle: const TextStyle(color: Colors.grey, fontSize: 14),
+              suffixIcon: suffixIcon,
+              suffixIconConstraints: const BoxConstraints(minHeight: 18, minWidth: 18),
             ),
             validator: validator,
           ),

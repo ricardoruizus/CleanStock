@@ -10,16 +10,21 @@ class VentasScreen extends StatefulWidget {
 class _VentasScreenState extends State<VentasScreen> {
   // --- VARIABLES DE ESTADO ---
   
-  // 1. Lo que el usuario escribe en el teclado numérico
-  String _cantidadInput = "1"; 
+  // Lo que el usuario escribe en el teclado numérico (Código de barras/ID)
+  String _codigoInput = ""; 
 
-  // 2. Lista de productos agregados al ticket actual (Empieza vacío)
+  // Lista de productos agregados al ticket actual
   List<Map<String, dynamic>> _ticket = [];
 
-  // 3. Catálogo de productos (Vacío, esperando a Supabase)
-  List<Map<String, dynamic>> _catalogo = [];
+  // Catálogo de productos (Simulado para el ejemplo)
+  final List<Map<String, dynamic>> _catalogo = [
+    {'id': '750105531', 'nombre': 'Coca Cola 600ml', 'precio': 18.00, 'icono': Icons.local_drink, 'color': Colors.red},
+    {'id': '750103042', 'nombre': 'Papas Sabritas 45g', 'precio': 22.50, 'icono': Icons.fastfood, 'color': Colors.orange},
+    {'id': '750162243', 'nombre': 'Leche Alpura 1L', 'precio': 28.00, 'icono': Icons.breakfast_dining, 'color': Colors.blue},
+    {'id': '750100014', 'nombre': 'Pan Blanco Bimbo', 'precio': 45.00, 'icono': Icons.bakery_dining, 'color': Colors.amber},
+  ];
 
-  // Paleta de colores
+  // Paleta de colores[cite: 2]
   final Color bgLight = const Color(0xFFE8EFF7);
   final Color primaryDark = const Color(0xFF294E69);
   final Color primaryLight = const Color(0xFF65ABDE);
@@ -32,31 +37,45 @@ class _VentasScreenState extends State<VentasScreen> {
   void _teclaPresionada(String tecla) {
     setState(() {
       if (tecla == 'del') {
-        if (_cantidadInput.length > 1) {
-          _cantidadInput = _cantidadInput.substring(0, _cantidadInput.length - 1);
-        } else {
-          _cantidadInput = "1";
+        if (_codigoInput.isNotEmpty) {
+          _codigoInput = _codigoInput.substring(0, _codigoInput.length - 1);
         }
-      } else if (tecla == '+') {
-        int actual = int.tryParse(_cantidadInput) ?? 1;
-        _cantidadInput = (actual + 1).toString();
+      } else if (tecla == 'add') {
+        _buscarYAgregarPorCodigo(_codigoInput);
       } else {
-        if (_cantidadInput == "1") {
-          _cantidadInput = tecla;
-        } else {
-          _cantidadInput += tecla;
-        }
+        _codigoInput += tecla;
       }
     });
   }
 
+  // Filtra el catálogo en tiempo real según lo escrito en _codigoInput
+  List<Map<String, dynamic>> _obtenerSugerencias() {
+    if (_codigoInput.isEmpty) return [];
+    return _catalogo.where((producto) {
+      return producto['id']!.contains(_codigoInput) ||
+             producto['nombre']!.toLowerCase().contains(_codigoInput.toLowerCase());
+    }).toList();
+  }
+
+  void _buscarYAgregarPorCodigo(String codigo) {
+    final productoIndex = _catalogo.indexWhere((item) => item['id'] == codigo);
+
+    if (productoIndex != -1) {
+      _agregarAlTicket(_catalogo[productoIndex]);
+      _codigoInput = "";
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Código de producto no encontrado.'), backgroundColor: Colors.red),
+      );
+    }
+  }
+
   void _agregarAlTicket(Map<String, dynamic> producto) {
     setState(() {
-      int cant = int.tryParse(_cantidadInput) ?? 1;
       int index = _ticket.indexWhere((item) => item['id'] == producto['id']);
       
       if (index != -1) {
-        _ticket[index]['cantidad'] += cant;
+        _ticket[index]['cantidad'] += 1;
       } else {
         _ticket.add({
           'id': producto['id'],
@@ -64,10 +83,9 @@ class _VentasScreenState extends State<VentasScreen> {
           'precio': producto['precio'],
           'icono': producto['icono'],
           'color': producto['color'],
-          'cantidad': cant,
+          'cantidad': 1,
         });
       }
-      _cantidadInput = "1"; 
     });
   }
 
@@ -85,14 +103,13 @@ class _VentasScreenState extends State<VentasScreen> {
       return;
     }
 
-    // Aquí irá el insert a Supabase
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('¡Venta registrada con éxito!'), backgroundColor: Color(0xFF2E9E8A)),
     );
 
     setState(() {
       _ticket.clear();
-      _cantidadInput = "1";
+      _codigoInput = "";
     });
   }
 
@@ -106,28 +123,26 @@ class _VentasScreenState extends State<VentasScreen> {
       body: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // PANEL IZQUIERDO (Búsqueda y Teclado)
+          // PANEL IZQUIERDO (Búsqueda, Sugerencias automáticas y Teclado)[cite: 2]
           Container(
-            width: 280, 
+            width: 290, 
             color: leftPanelBg,
             padding: const EdgeInsets.all(12.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _buildBuscador(),
-                const SizedBox(height: 12),
-                _buildResultadosBusqueda(),
-                const SizedBox(height: 12),
-                _buildDisplayNumpad(),
-                const SizedBox(height: 8),
-                Expanded(child: _buildNumpad()),
+                _buildDisplayCodigo(), // Muestra el código actual arriba de forma limpia
+                const SizedBox(height: 10),
+                Expanded(child: _buildPanelSugerencias()), // Sugerencias automáticas fijas en pantalla
+                const SizedBox(height: 10),
+                _buildNumpad(), // El teclado numérico abajo[cite: 2]
               ],
             ),
           ),
           
           Container(width: 0.5, color: borderLight),
 
-          // PANEL DERECHO (Ticket)
+          // PANEL DERECHO (Ticket)[cite: 2]
           Expanded(
             child: Container(
               color: bgLight,
@@ -188,9 +203,10 @@ class _VentasScreenState extends State<VentasScreen> {
     );
   }
 
-  Widget _buildBuscador() {
+  // --- ENTRADA VISUAL DEL CÓDIGO ---
+  Widget _buildDisplayCodigo() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
       decoration: BoxDecoration(
         color: Colors.white,
         border: Border.all(color: borderLight, width: 0.5),
@@ -198,102 +214,101 @@ class _VentasScreenState extends State<VentasScreen> {
       ),
       child: Row(
         children: [
-          Icon(Icons.qr_code_scanner, size: 16, color: textMuted),
-          const SizedBox(width: 8),
-          Expanded(child: Text('Buscar ID del producto', style: TextStyle(color: textMuted, fontSize: 12))),
-          Icon(Icons.search, size: 16, color: textMuted),
+          Icon(Icons.qr_code_scanner, size: 16, color: primaryLight),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              _codigoInput.isEmpty ? 'Escribe o escanea código...' : _codigoInput,
+              style: TextStyle(
+                color: _codigoInput.isEmpty ? textMuted : primaryDark,
+                fontSize: 13,
+                fontWeight: _codigoInput.isEmpty ? FontWeight.normal : FontWeight.bold
+              ),
+            ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildResultadosBusqueda() {
+  // --- PANEL FIJO DE SUGERENCIAS EN TIEMPO REAL ---
+  Widget _buildPanelSugerencias() {
+    final sugerencias = _obtenerSugerencias();
+
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
         border: Border.all(color: borderLight, width: 0.5),
         borderRadius: BorderRadius.circular(8),
       ),
-      child: _catalogo.isEmpty
-          ? Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Center(
-                child: Text(
-                  'Catálogo vacío.\nConecta Supabase para ver los productos.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: textMuted, fontSize: 12),
-                ),
+      child: _codigoInput.isEmpty
+          ? Center(
+              child: Text(
+                'Comienza a teclear\npara buscar productos',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: textMuted, fontSize: 11),
               ),
             )
-          : Column(
-              children: _catalogo.asMap().entries.map((entry) {
-                int index = entry.key;
-                var prod = entry.value;
-                return Column(
-                  children: [
-                    _buildFilaResultado(prod),
-                    if (index < _catalogo.length - 1) Divider(height: 1, color: borderLight.withOpacity(0.5)),
-                  ],
-                );
-              }).toList(),
-            ),
-    );
-  }
-
-  Widget _buildFilaResultado(Map<String, dynamic> producto) {
-    return InkWell(
-      onTap: () => _agregarAlTicket(producto),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-        child: Row(
-          children: [
-            Icon(Icons.circle, size: 8, color: producto['color']),
-            const SizedBox(width: 8),
-            Text(producto['id'], style: TextStyle(color: primaryLight, fontWeight: FontWeight.bold, fontSize: 10)),
-            const SizedBox(width: 8),
-            Expanded(child: Text(producto['nombre'], style: TextStyle(color: primaryDark, fontSize: 11), overflow: TextOverflow.ellipsis)),
-            Text('\$${producto['precio']}', style: TextStyle(color: textMuted, fontSize: 11)),
-            const SizedBox(width: 8),
-            Icon(Icons.add_circle_outline, size: 16, color: primaryLight),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDisplayNumpad() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: borderLight, width: 0.5),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      alignment: Alignment.centerRight,
-      child: RichText(
-        text: TextSpan(
-          style: TextStyle(color: primaryDark, fontSize: 16),
-          children: [
-            const TextSpan(text: 'Cant: ', style: TextStyle(fontWeight: FontWeight.w300)),
-            TextSpan(text: _cantidadInput, style: const TextStyle(fontWeight: FontWeight.bold)),
-          ],
-        ),
-      ),
+          : sugerencias.isEmpty
+              ? Center(
+                  child: Text(
+                    'Ningún producto coincide',
+                    style: TextStyle(color: textMuted, fontSize: 11),
+                  ),
+                )
+              : ListView.separated(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  itemCount: sugerencias.length,
+                  separatorBuilder: (context, index) => Divider(height: 1, color: borderLight.withOpacity(0.3)),
+                  itemBuilder: (context, index) {
+                    final prod = sugerencias[index];
+                    return InkWell(
+                      onTap: () {
+                        _agregarAlTicket(prod);
+                        setState(() {
+                          _codigoInput = ""; // Limpia la búsqueda tras dar tap
+                        });
+                      },
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                        child: Row(
+                          children: [
+                            Icon(Icons.circle, size: 8, color: prod['color']),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(prod['nombre'], style: TextStyle(color: primaryDark, fontSize: 11, fontWeight: FontWeight.w500), overflow: TextOverflow.ellipsis),
+                                  Text(prod['id'], style: TextStyle(color: textMuted, fontSize: 9)),
+                                ],
+                              ),
+                            ),
+                            Text('\$${prod['precio'].toStringAsFixed(2)}', style: TextStyle(color: primaryLight, fontSize: 11, fontWeight: FontWeight.bold)),
+                            const SizedBox(width: 4),
+                            Icon(Icons.add_circle_outline, size: 14, color: primaryLight),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
     );
   }
 
   Widget _buildNumpad() {
     return GridView.count(
       crossAxisCount: 3,
-      crossAxisSpacing: 8,
-      mainAxisSpacing: 8,
+      crossAxisSpacing: 6,
+      mainAxisSpacing: 6,
       childAspectRatio: 1.5,
+      shrinkWrap: true, // Se adapta al tamaño restante del panel izquierdo
       physics: const NeverScrollableScrollPhysics(),
       children: [
         _buildTeclaNum('1'), _buildTeclaNum('2'), _buildTeclaNum('3'),
         _buildTeclaNum('4'), _buildTeclaNum('5'), _buildTeclaNum('6'),
         _buildTeclaNum('7'), _buildTeclaNum('8'), _buildTeclaNum('9'),
-        _buildTeclaAccion(Icons.add, true, '+'), _buildTeclaNum('0'), _buildTeclaAccion(Icons.backspace_outlined, false, 'del'),
+        _buildTeclaAccion(Icons.check_circle, true, 'add'), _buildTeclaNum('0'), _buildTeclaAccion(Icons.backspace_outlined, false, 'del'),
       ],
     );
   }
@@ -309,7 +324,7 @@ class _VentasScreenState extends State<VentasScreen> {
           borderRadius: BorderRadius.circular(8),
         ),
         alignment: Alignment.center,
-        child: Text(num, style: TextStyle(fontSize: 18, color: primaryDark, fontWeight: FontWeight.w500)),
+        child: Text(num, style: TextStyle(fontSize: 16, color: primaryDark, fontWeight: FontWeight.w500)),
       ),
     );
   }
@@ -320,12 +335,12 @@ class _VentasScreenState extends State<VentasScreen> {
       borderRadius: BorderRadius.circular(8),
       child: Container(
         decoration: BoxDecoration(
-          color: isAct ? const Color(0xFFDEEEF8) : const Color(0xFFFCE9E9),
-          border: Border.all(color: isAct ? borderLight : const Color(0xFFF09595)),
+          color: isAct ? const Color(0xFFD6F0EB) : const Color(0xFFFCE9E9),
+          border: Border.all(color: isAct ? const Color(0xFF2E9E8A) : const Color(0xFFF09595)),
           borderRadius: BorderRadius.circular(8),
         ),
         alignment: Alignment.center,
-        child: Icon(icon, color: isAct ? primaryLight : const Color(0xFFA32D2D), size: 18),
+        child: Icon(icon, color: isAct ? const Color(0xFF0F6E56) : const Color(0xFFA32D2D), size: 18),
       ),
     );
   }
@@ -370,7 +385,7 @@ class _VentasScreenState extends State<VentasScreen> {
             Icon(Icons.shopping_cart_checkout, size: 48, color: borderLight.withOpacity(0.5)),
             const SizedBox(height: 12),
             Text('El ticket está vacío', style: TextStyle(color: primaryDark, fontSize: 14, fontWeight: FontWeight.bold)),
-            Text('Agrega productos desde el buscador', style: TextStyle(color: textMuted, fontSize: 12)),
+            Text('Digita códigos en el teclado de la izquierda', style: TextStyle(color: textMuted, fontSize: 12)),
           ],
         ),
       );
