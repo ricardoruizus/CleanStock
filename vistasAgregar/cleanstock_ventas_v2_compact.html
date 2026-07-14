@@ -1,0 +1,511 @@
+
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif; }
+
+.stage { display: flex; flex-direction: column; align-items: center; padding: 1.5rem 0 1rem; }
+
+.mode-toggle {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 1.25rem;
+  background: var(--color-background-secondary); border: 0.5px solid var(--color-border-tertiary);
+  border-radius: 20px; padding: 6px 14px; font-size: 13px; color: var(--color-text-secondary);
+  cursor: pointer; user-select: none;
+}
+.toggle-pill {
+  width: 36px; height: 20px; border-radius: 10px; background: #adcbe3;
+  position: relative; transition: background 0.3s;
+}
+.toggle-pill.dark { background: #294e69; }
+.toggle-pill::after {
+  content: ''; position: absolute; width: 14px; height: 14px; border-radius: 50%;
+  background: white; top: 3px; left: 3px; transition: transform 0.3s;
+}
+.toggle-pill.dark::after { transform: translateX(16px); }
+
+.tablet-outer {
+  width: 640px; height: 460px; border-radius: 28px; padding: 11px;
+  background: #1a1a1e; box-shadow: 0 0 0 1.5px #3a3a3c, 0 20px 50px rgba(0,0,0,0.4);
+  position: relative;
+}
+.camera-dot {
+  position: absolute; top: 50%; left: 18px; transform: translateY(-50%);
+  width: 8px; height: 8px; border-radius: 50%; background: #2a2a2c; z-index: 10;
+}
+.tablet-inner {
+  width: 100%; height: 100%; border-radius: 18px; overflow: hidden;
+  display: flex; flex-direction: column; transition: background 0.4s;
+}
+.tablet-inner.light { background: #e8eff7; }
+.tablet-inner.dark  { background: #1c2e3e; }
+
+/* STATUS BAR */
+.status-bar {
+  height: 24px; display: flex; align-items: center; justify-content: space-between;
+  padding: 0 16px; font-size: 10px; font-weight: 500; flex-shrink: 0; transition: color 0.3s;
+}
+.status-bar.light { color: #294e69; }
+.status-bar.dark  { color: #adcbe3; }
+.status-icons { display: flex; gap: 4px; align-items: center; }
+.signal-bar { width: 3px; border-radius: 1px; background: currentColor; }
+
+/* HEADER */
+.top-header {
+  height: 44px; display: flex; align-items: center; justify-content: space-between;
+  padding: 0 16px; flex-shrink: 0; transition: background 0.4s, border-color 0.4s;
+}
+.top-header.light { background: white; border-bottom: 0.5px solid #adcbe3; }
+.top-header.dark  { background: #162534; border-bottom: 0.5px solid #294e69; }
+
+.header-left { display: flex; align-items: center; gap: 8px; }
+.brand-chip {
+  display: flex; align-items: center; gap: 6px; padding: 4px 10px 4px 6px;
+  border-radius: 20px; transition: background 0.3s;
+}
+.brand-chip.light { background: #e8eff7; }
+.brand-chip.dark  { background: #243647; }
+.brand-dot {
+  width: 22px; height: 22px; border-radius: 6px; display: flex; align-items: center;
+  justify-content: center; transition: background 0.3s;
+}
+.brand-dot.light { background: #65abde; }
+.brand-dot.dark  { background: #294e69; }
+.brand-dot i { font-size: 12px; color: white; }
+.brand-text { font-size: 9px; font-weight: 700; letter-spacing: 0.08em; transition: color 0.3s; }
+.brand-text.light { color: #294e69; }
+.brand-text.dark  { color: #65abde; }
+.sep { font-size: 12px; font-weight: 300; color: #adcbe3; }
+.page-title { font-size: 15px; font-weight: 600; transition: color 0.3s; }
+.page-title.light { color: #294e69; }
+.page-title.dark  { color: #e8eff7; }
+
+.header-right { display: flex; align-items: center; gap: 6px; }
+.icon-btn {
+  width: 30px; height: 30px; border-radius: 8px; display: flex; align-items: center;
+  justify-content: center; cursor: pointer; transition: background 0.3s;
+}
+.icon-btn.light { background: #e8eff7; }
+.icon-btn.dark  { background: #243647; }
+.icon-btn i { font-size: 15px; }
+.icon-btn.light i { color: #4a87b4; }
+.icon-btn.dark  i { color: #65abde; }
+.confirm-btn {
+  height: 30px; border-radius: 8px; display: flex; align-items: center;
+  gap: 5px; padding: 0 12px; font-size: 11px; font-weight: 600; cursor: pointer;
+  transition: background 0.3s;
+}
+.confirm-btn.light { background: #65abde; color: white; }
+.confirm-btn.dark  { background: #4a87b4; color: white; }
+.confirm-btn i { font-size: 12px; }
+
+/* BODY */
+.body-area { flex: 1; display: flex; overflow: hidden; }
+
+/* ── LEFT PANEL ── */
+.left-panel {
+  width: 200px; flex-shrink: 0; display: flex; flex-direction: column;
+  padding: 8px; gap: 6px; transition: background 0.4s, border-color 0.4s;
+}
+.left-panel.light { background: #f0f6fb; border-right: 0.5px solid #adcbe3; }
+.left-panel.dark  { background: #1a2d3e; border-right: 0.5px solid #294e69; }
+
+/* search row */
+.search-row {
+  display: flex; align-items: center; gap: 6px; padding: 7px 10px; border-radius: 9px;
+  font-size: 11px; transition: background 0.3s, border-color 0.3s;
+}
+.search-row.light { background: white; border: 0.5px solid #adcbe3; color: #9ab4c8; }
+.search-row.dark  { background: #243647; border: 0.5px solid #4a87b4; color: #4a87b4; }
+.search-row i { font-size: 13px; }
+
+/* compact results — 2 tiny rows */
+.results-compact {
+  border-radius: 9px; overflow: hidden; flex-shrink: 0;
+  transition: background 0.3s, border-color 0.3s;
+}
+.results-compact.light { background: white; border: 0.5px solid #adcbe3; }
+.results-compact.dark  { background: #243647; border: 0.5px solid #4a87b4; }
+
+.rc-row {
+  display: flex; align-items: center; gap: 7px; padding: 5px 8px; cursor: pointer;
+}
+.rc-row + .rc-row { border-top: 0.5px solid; }
+.rc-row.light + .rc-row.light { border-color: #ddeaf5; }
+.rc-row.dark  + .rc-row.dark  { border-color: #294e69; }
+.rc-row.sel.light { background: #deeef8; }
+.rc-row.sel.dark  { background: #1e3a52; }
+
+.rc-dot {
+  width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
+}
+.rc-info { flex: 1; display: flex; align-items: baseline; gap: 4px; }
+.rc-id { font-size: 9px; font-weight: 700; }
+.rc-id.light { color: #65abde; }
+.rc-id.dark  { color: #65abde; }
+.rc-name { font-size: 10px; }
+.rc-name.light { color: #294e69; }
+.rc-name.dark  { color: #c8dde9; }
+.rc-price { font-size: 9px; margin-left: auto; }
+.rc-price.light { color: #9ab4c8; }
+.rc-price.dark  { color: #4a87b4; }
+.rc-add { font-size: 11px; flex-shrink: 0; }
+.rc-add.light { color: #65abde; }
+.rc-add.dark  { color: #65abde; }
+
+/* numpad display */
+.np-display {
+  padding: 6px 10px; border-radius: 8px; text-align: right;
+  font-size: 16px; font-weight: 300; letter-spacing: -0.3px; flex-shrink: 0;
+  transition: background 0.3s, border-color 0.3s, color 0.3s;
+}
+.np-display.light { background: white; border: 0.5px solid #adcbe3; color: #294e69; }
+.np-display.dark  { background: #243647; border: 0.5px solid #4a87b4; color: #e8eff7; }
+
+/* numpad grid */
+.np-grid {
+  display: grid; grid-template-columns: repeat(3,1fr); gap: 5px; flex: 1;
+}
+.nk {
+  border-radius: 9px; display: flex; align-items: center; justify-content: center;
+  font-size: 14px; font-weight: 500; cursor: pointer;
+  transition: background 0.3s, color 0.3s, border-color 0.3s;
+}
+.nk.light { background: white; border: 0.5px solid #c8dce9; color: #294e69; }
+.nk.dark  { background: #243647; border: 0.5px solid #3a5165; color: #c8dde9; }
+.nk.act.light { background: #deeef8; color: #4a87b4; border-color: #adcbe3; }
+.nk.act.dark  { background: #1e3a52; color: #65abde; border-color: #294e69; }
+.nk.del.light { background: #fce9e9; color: #a32d2d; border-color: #f09595; }
+.nk.del.dark  { background: #3a1414; color: #f09595; border-color: #701f1f; }
+
+/* ── RIGHT PANEL ── */
+.right-panel { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+.ptable-hdr {
+  padding: 7px 12px; text-align: center; font-size: 11px; font-weight: 700;
+  letter-spacing: 0.06em; text-transform: uppercase; flex-shrink: 0;
+  transition: background 0.3s, color 0.3s;
+}
+.ptable-hdr.light { background: #294e69; color: #e8eff7; }
+.ptable-hdr.dark  { background: #162534; color: #65abde; }
+
+.pt { width: 100%; border-collapse: collapse; font-size: 11px; }
+.pt thead tr { transition: background 0.3s; }
+.pt thead.light tr { background: #ddeaf5; }
+.pt thead.dark  tr { background: #1e3a52; }
+.pt th { padding: 6px 9px; font-size: 9px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; transition: color 0.3s; }
+.pt th.light { color: #4a87b4; }
+.pt th.dark  { color: #65abde; }
+.pt th.r { text-align: right; }
+.pt th.c { text-align: center; }
+
+.pt tbody tr { transition: background 0.3s; }
+.pt tbody tr.re.light { background: white; }
+.pt tbody tr.re.dark  { background: #1f3244; }
+.pt tbody tr.ro.light { background: #f5f9fd; }
+.pt tbody tr.ro.dark  { background: #1c2e3e; }
+.pt tbody tr + tr { border-top: 0.5px solid; }
+.pt tbody tr.light + tr.light { border-color: #ddeaf5; }
+.pt tbody tr.dark  + tr.dark  { border-color: #243647; }
+
+.pt td { padding: 5px 9px; transition: color 0.3s; }
+.pt td.light { color: #294e69; }
+.pt td.dark  { color: #c8dde9; }
+.pt td.muted.light { color: #9ab4c8; }
+.pt td.muted.dark  { color: #4a87b4; }
+.pt td.r { text-align: right; font-weight: 500; }
+.pt td.c { text-align: center; }
+
+.pn-cell { display: flex; align-items: center; gap: 6px; }
+.pi { width: 18px; height: 18px; border-radius: 5px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.pi i { font-size: 10px; color: white; }
+
+.cbadge {
+  display: inline-flex; width: 20px; height: 16px; border-radius: 4px; align-items: center;
+  justify-content: center; font-size: 10px; font-weight: 600;
+  transition: background 0.3s, color 0.3s;
+}
+.cbadge.light { background: #deeef8; color: #294e69; }
+.cbadge.dark  { background: #1e3a52; color: #adcbe3; }
+
+.rmbtn {
+  width: 16px; height: 16px; border-radius: 4px; display: flex; align-items: center;
+  justify-content: center; cursor: pointer; transition: background 0.3s;
+}
+.rmbtn.light { background: #fce9e9; }
+.rmbtn.dark  { background: #3a1414; }
+.rmbtn i { font-size: 9px; }
+.rmbtn.light i { color: #a32d2d; }
+.rmbtn.dark  i { color: #f09595; }
+
+tfoot tr.trow { transition: background 0.3s; }
+tfoot tr.trow.light { background: #294e69; }
+tfoot tr.trow.dark  { background: #162534; }
+tfoot td { padding: 7px 9px; font-size: 11px; font-weight: 700; transition: color 0.3s; }
+tfoot td.light { color: white; }
+tfoot td.dark  { color: #65abde; }
+.tamount.light { color: #adcbe3 !important; font-size: 13px; }
+.tamount.dark  { color: #adcbe3 !important; font-size: 13px; }
+
+/* ── COMPACT BOTTOM NAV (icon-only, 34px) ── */
+.bottom-nav {
+  height: 34px; display: flex; align-items: stretch; flex-shrink: 0;
+  transition: background 0.4s, border-color 0.4s;
+}
+.bottom-nav.light { background: white; border-top: 0.5px solid #adcbe3; }
+.bottom-nav.dark  { background: #162534; border-top: 0.5px solid #294e69; }
+
+.tab-item {
+  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  cursor: pointer; position: relative; gap: 1px;
+}
+.tab-item i { font-size: 15px; transition: color 0.3s; }
+.tab-item span { font-size: 7px; font-weight: 500; transition: color 0.3s; line-height: 1; }
+.tab-item.active.light i, .tab-item.active.light span { color: #65abde; }
+.tab-item.active.dark  i, .tab-item.active.dark  span { color: #65abde; }
+.tab-item.inactive.light i, .tab-item.inactive.light span { color: #adcbe3; }
+.tab-item.inactive.dark  i, .tab-item.inactive.dark  span { color: #3a5a72; }
+.tab-ind {
+  position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+  width: 24px; height: 2px; border-radius: 0 0 2px 2px;
+}
+.tab-ind.light { background: #65abde; }
+.tab-ind.dark  { background: #65abde; }
+.tnot {
+  position: absolute; top: 3px; right: calc(50% - 13px);
+  width: 12px; height: 12px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 7px; font-weight: 700; background: #e24b4a; color: white;
+}
+
+.hi { height: 4px; display: flex; justify-content: center; align-items: center; flex-shrink: 0; }
+.hi-b { width: 70px; height: 3px; border-radius: 2px; transition: background 0.3s, opacity 0.3s; }
+.hi-b.light { background: #294e69; opacity: 0.15; }
+.hi-b.dark  { background: #adcbe3; opacity: 0.22; }
+</style>
+
+<div class="stage">
+  <div class="mode-toggle" onclick="toggleMode()" role="button" aria-label="Cambiar modo">
+    <span id="ml">Modo claro</span>
+    <div class="toggle-pill" id="pill"></div>
+  </div>
+
+  <div class="tablet-outer">
+    <div class="camera-dot"></div>
+    <div class="tablet-inner light" id="screen">
+
+      <!-- STATUS BAR -->
+      <div class="status-bar light" id="sb">
+        <span>9:41</span>
+        <div class="status-icons">
+          <div class="signal-bar" style="height:5px"></div>
+          <div class="signal-bar" style="height:8px"></div>
+          <div class="signal-bar" style="height:11px"></div>
+          <i class="ti ti-wifi" style="font-size:12px;margin-left:3px" aria-hidden="true"></i>
+          <i class="ti ti-battery-2" style="font-size:12px;margin-left:3px" aria-hidden="true"></i>
+        </div>
+      </div>
+
+      <!-- HEADER -->
+      <div class="top-header light" id="th">
+        <div class="header-left">
+          <div class="brand-chip light" id="bc">
+            <div class="brand-dot light" id="bd"><i class="ti ti-sparkles" aria-hidden="true"></i></div>
+            <span class="brand-text light" id="bt">CLEANSTOCK</span>
+          </div>
+          <span class="sep">/</span>
+          <div class="page-title light" id="pt">Ventas</div>
+        </div>
+        <div class="header-right">
+          <div class="icon-btn light" id="ib1"><i class="ti ti-history" aria-hidden="true"></i></div>
+          <div class="icon-btn light" id="ib2"><i class="ti ti-printer" aria-hidden="true"></i></div>
+          <div class="confirm-btn light" id="cfb">
+            <i class="ti ti-check" aria-hidden="true"></i>Confirmar venta
+          </div>
+        </div>
+      </div>
+
+      <!-- BODY -->
+      <div class="body-area">
+
+        <!-- LEFT -->
+        <div class="left-panel light" id="lp">
+
+          <div class="search-row light" id="sr">
+            <i class="ti ti-barcode" aria-hidden="true"></i>
+            Buscar ID del producto
+            <i class="ti ti-search" style="margin-left:auto" aria-hidden="true"></i>
+          </div>
+
+          <!-- COMPACT RESULTS -->
+          <div class="results-compact light" id="rc">
+            <div class="rc-row sel light" id="rr1">
+              <div class="rc-dot" style="background:#65abde"></div>
+              <div class="rc-info">
+                <span class="rc-id light">1001</span>
+                <span class="rc-name light">Limpiador multiusos</span>
+                <span class="rc-price light">$89</span>
+              </div>
+              <i class="ti ti-circle-plus rc-add light" aria-hidden="true"></i>
+            </div>
+            <div class="rc-row light" id="rr2">
+              <div class="rc-dot" style="background:#2e9e8a"></div>
+              <div class="rc-info">
+                <span class="rc-id light">1002</span>
+                <span class="rc-name light">Desinfectante bact.</span>
+                <span class="rc-price light">$145</span>
+              </div>
+              <i class="ti ti-circle-plus rc-add light" aria-hidden="true"></i>
+            </div>
+            <div class="rc-row light" id="rr3">
+              <div class="rc-dot" style="background:#294e69"></div>
+              <div class="rc-info">
+                <span class="rc-id light">1003</span>
+                <span class="rc-name light">Jabón industrial</span>
+                <span class="rc-price light">$62</span>
+              </div>
+              <i class="ti ti-circle-plus rc-add light" aria-hidden="true"></i>
+            </div>
+          </div>
+
+          <!-- DISPLAY -->
+          <div class="np-display light" id="npd">Cant: <strong>1</strong></div>
+
+          <!-- NUMPAD -->
+          <div class="np-grid" id="npg">
+            <div class="nk light" id="n1">1</div>
+            <div class="nk light" id="n2">2</div>
+            <div class="nk light" id="n3">3</div>
+            <div class="nk light" id="n4">4</div>
+            <div class="nk light" id="n5">5</div>
+            <div class="nk light" id="n6">6</div>
+            <div class="nk light" id="n7">7</div>
+            <div class="nk light" id="n8">8</div>
+            <div class="nk light" id="n9">9</div>
+            <div class="nk act light" id="nplus"><i class="ti ti-plus" style="font-size:13px" aria-hidden="true"></i></div>
+            <div class="nk light" id="n0">0</div>
+            <div class="nk del light" id="ndel"><i class="ti ti-backspace" style="font-size:13px" aria-hidden="true"></i></div>
+          </div>
+
+        </div>
+
+        <!-- RIGHT -->
+        <div class="right-panel">
+          <div class="ptable-hdr light" id="phdr">Productos en esta venta</div>
+          <table class="pt" id="ptbl">
+            <thead class="light" id="pth">
+              <tr>
+                <th class="light" style="width:36%">Producto</th>
+                <th class="light c" style="width:12%">Cant.</th>
+                <th class="light r" style="width:16%">Precio</th>
+                <th class="light r" style="width:16%">Total</th>
+                <th class="light c" style="width:10%"></th>
+              </tr>
+            </thead>
+            <tbody id="ptb">
+              <tr class="re light">
+                <td class="light"><div class="pn-cell"><div class="pi" style="background:#65abde"><i class="ti ti-droplet" aria-hidden="true"></i></div>Limpiador multiusos</div></td>
+                <td class="c light"><span class="cbadge light" id="cb1">3</span></td>
+                <td class="r light">$89.00</td>
+                <td class="r light">$267.00</td>
+                <td class="c light"><div class="rmbtn light" id="rb1"><i class="ti ti-x" aria-hidden="true"></i></div></td>
+              </tr>
+              <tr class="ro light">
+                <td class="light"><div class="pn-cell"><div class="pi" style="background:#2e9e8a"><i class="ti ti-sparkles" aria-hidden="true"></i></div>Desinfectante bact.</div></td>
+                <td class="c light"><span class="cbadge light" id="cb2">2</span></td>
+                <td class="r light">$145.50</td>
+                <td class="r light">$291.00</td>
+                <td class="c light"><div class="rmbtn light" id="rb2"><i class="ti ti-x" aria-hidden="true"></i></div></td>
+              </tr>
+              <tr class="re light">
+                <td class="light"><div class="pn-cell"><div class="pi" style="background:#294e69"><i class="ti ti-bottle" aria-hidden="true"></i></div>Jabón industrial</div></td>
+                <td class="c light"><span class="cbadge light" id="cb3">5</span></td>
+                <td class="r light">$62.00</td>
+                <td class="r light">$310.00</td>
+                <td class="c light"><div class="rmbtn light" id="rb3"><i class="ti ti-x" aria-hidden="true"></i></div></td>
+              </tr>
+              <tr class="ro light">
+                <td class="light"><div class="pn-cell"><div class="pi" style="background:#4a87b4"><i class="ti ti-wind" aria-hidden="true"></i></div>Aromatizante cítrico</div></td>
+                <td class="c light"><span class="cbadge light" id="cb4">1</span></td>
+                <td class="r light">$55.00</td>
+                <td class="r light">$55.00</td>
+                <td class="c light"><div class="rmbtn light" id="rb4"><i class="ti ti-x" aria-hidden="true"></i></div></td>
+              </tr>
+              <tr class="re light">
+                <td class="light"><div class="pn-cell"><div class="pi" style="background:#adcbe3"><i class="ti ti-wiper" aria-hidden="true"></i></div>Escoba industrial</div></td>
+                <td class="c light"><span class="cbadge light" id="cb5">2</span></td>
+                <td class="r light">$210.00</td>
+                <td class="r light">$420.00</td>
+                <td class="c light"><div class="rmbtn light" id="rb5"><i class="ti ti-x" aria-hidden="true"></i></div></td>
+              </tr>
+            </tbody>
+            <tfoot>
+              <tr class="trow light" id="trow">
+                <td colspan="2" class="light"><i class="ti ti-receipt" style="font-size:11px;vertical-align:-1px;margin-right:4px" aria-hidden="true"></i>TOTAL · 13 arts.</td>
+                <td class="r muted light" style="font-size:9px;font-weight:500">MXN</td>
+                <td class="r tamount light">$1,343.00</td>
+                <td class="light"></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+
+      <!-- COMPACT BOTTOM NAV -->
+      <div class="bottom-nav light" id="bnav">
+        <div class="tab-item inactive light" id="t1">
+          <i class="ti ti-layout-grid" aria-hidden="true"></i>
+          <span>Inicio</span>
+        </div>
+        <div class="tab-item inactive light" id="t2">
+          <i class="ti ti-package" aria-hidden="true"></i>
+          <span>Inventario</span>
+        </div>
+        <div class="tab-item active light" id="t3">
+          <div class="tab-ind light" id="ti3"></div>
+          <i class="ti ti-chart-line" aria-hidden="true"></i>
+          <span>Ventas</span>
+        </div>
+        <div class="tab-item inactive light" id="t4">
+          <div class="tnot">2</div>
+          <i class="ti ti-truck-delivery" aria-hidden="true"></i>
+          <span>Proveedores</span>
+        </div>
+        <div class="tab-item inactive light" id="t5">
+          <i class="ti ti-receipt" aria-hidden="true"></i>
+          <span>Reg. Venta</span>
+        </div>
+        <div class="tab-item inactive light" id="t6">
+          <i class="ti ti-settings" aria-hidden="true"></i>
+          <span>Config</span>
+        </div>
+      </div>
+
+      <div class="hi"><div class="hi-b light" id="hib"></div></div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+var dark = false;
+var ids = [
+  'screen','sb','th','bc','bd','bt','pt','ib1','ib2','cfb',
+  'lp','sr','rc','rr1','rr2','rr3','npd','npg',
+  'n1','n2','n3','n4','n5','n6','n7','n8','n9','n0','nplus','ndel',
+  'phdr','ptbl','pth',
+  'cb1','cb2','cb3','cb4','cb5',
+  'rb1','rb2','rb3','rb4','rb5',
+  'trow','bnav','t1','t2','t3','t4','t5','t6','ti3','hib'
+];
+
+function toggleMode() {
+  dark = !dark;
+  var m = dark ? 'dark' : 'light', o = dark ? 'light' : 'dark';
+  ids.forEach(function(id){ var el=document.getElementById(id); if(el){el.classList.remove(o);el.classList.add(m);} });
+  document.querySelectorAll('.pt th,.pt td').forEach(function(el){el.classList.remove(o);el.classList.add(m);});
+  document.querySelectorAll('.pt tbody tr').forEach(function(el){el.classList.remove(o);el.classList.add(m);});
+  document.querySelectorAll('.rc-id,.rc-name,.rc-price,.rc-add').forEach(function(el){el.classList.remove(o);el.classList.add(m);});
+  document.querySelectorAll('.tamount').forEach(function(el){el.classList.remove(o);el.classList.add(m);});
+  document.getElementById('pill').classList.toggle('dark',dark);
+  document.getElementById('ml').textContent = dark ? 'Modo oscuro' : 'Modo claro';
+}
+</script>

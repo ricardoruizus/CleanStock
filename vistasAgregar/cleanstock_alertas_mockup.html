@@ -1,0 +1,460 @@
+
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif; }
+.stage { display: flex; flex-direction: column; align-items: center; padding: 1.5rem 0 1rem; }
+
+.mode-toggle { display: flex; align-items: center; gap: 10px; margin-bottom: 1.25rem; background: var(--color-background-secondary); border: 0.5px solid var(--color-border-tertiary); border-radius: 20px; padding: 6px 14px; font-size: 13px; color: var(--color-text-secondary); cursor: pointer; user-select: none; }
+.toggle-pill { width: 36px; height: 20px; border-radius: 10px; background: #adcbe3; position: relative; transition: background 0.3s; }
+.toggle-pill.dark { background: #294e69; }
+.toggle-pill::after { content: ''; position: absolute; width: 14px; height: 14px; border-radius: 50%; background: white; top: 3px; left: 3px; transition: transform 0.3s; }
+.toggle-pill.dark::after { transform: translateX(16px); }
+
+.tablet-outer { width: 640px; height: 460px; border-radius: 28px; padding: 11px; background: #1a1a1e; box-shadow: 0 0 0 1.5px #3a3a3c, 0 20px 50px rgba(0,0,0,0.4); position: relative; }
+.camera-dot { position: absolute; top: 50%; left: 18px; transform: translateY(-50%); width: 8px; height: 8px; border-radius: 50%; background: #2a2a2c; z-index: 10; }
+.tablet-inner { width: 100%; height: 100%; border-radius: 18px; overflow: hidden; display: flex; flex-direction: column; transition: background 0.4s; }
+.tablet-inner.light { background: #e8eff7; }
+.tablet-inner.dark  { background: #1c2e3e; }
+
+/* STATUS */
+.status-bar { height: 24px; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; font-size: 11px; font-weight: 500; flex-shrink: 0; transition: color 0.3s; }
+.status-bar.light { color: #294e69; }
+.status-bar.dark  { color: #adcbe3; }
+.status-icons { display: flex; gap: 5px; align-items: center; }
+.signal-bar { width: 3px; border-radius: 1px; background: currentColor; }
+
+/* HEADER */
+.top-header { height: 44px; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; flex-shrink: 0; transition: background 0.4s, border-color 0.4s; }
+.top-header.light { background: white; border-bottom: 0.5px solid #adcbe3; }
+.top-header.dark  { background: #162534; border-bottom: 0.5px solid #294e69; }
+.header-left { display: flex; align-items: center; gap: 9px; }
+.brand-chip { display: flex; align-items: center; gap: 6px; padding: 4px 10px 4px 6px; border-radius: 18px; transition: background 0.3s; }
+.brand-chip.light { background: #e8eff7; }
+.brand-chip.dark  { background: #243647; }
+.brand-dot { width: 22px; height: 22px; border-radius: 7px; display: flex; align-items: center; justify-content: center; transition: background 0.3s; }
+.brand-dot.light { background: #65abde; }
+.brand-dot.dark  { background: #294e69; }
+.brand-dot i { font-size: 12px; color: white; }
+.brand-text { font-size: 10px; font-weight: 700; letter-spacing: 0.08em; transition: color 0.3s; }
+.brand-text.light { color: #294e69; }
+.brand-text.dark  { color: #65abde; }
+.sep { font-size: 12px; color: #adcbe3; }
+.page-title { font-size: 15px; font-weight: 600; transition: color 0.3s; }
+.page-title.light { color: #294e69; }
+.page-title.dark  { color: #e8eff7; }
+.header-right { display: flex; align-items: center; gap: 7px; }
+.icon-btn { width: 30px; height: 30px; border-radius: 9px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: background 0.3s; }
+.icon-btn.light { background: #e8eff7; }
+.icon-btn.dark  { background: #243647; }
+.icon-btn i { font-size: 15px; }
+.icon-btn.light i { color: #4a87b4; }
+.icon-btn.dark  i { color: #65abde; }
+.mark-btn { height: 30px; border-radius: 9px; display: flex; align-items: center; gap: 5px; padding: 0 12px; font-size: 11px; font-weight: 600; cursor: pointer; transition: background 0.3s; }
+.mark-btn.light { background: #65abde; color: white; }
+.mark-btn.dark  { background: #4a87b4; color: white; }
+.mark-btn i { font-size: 12px; }
+
+/* BODY */
+.body-area { flex: 1; display: flex; overflow: hidden; gap: 0; }
+
+/* LEFT PANEL */
+.left-panel { flex: 1; display: flex; flex-direction: column; overflow: hidden; padding: 10px 10px 10px 14px; gap: 8px; }
+
+/* PAGE INTRO */
+.page-intro { flex-shrink: 0; }
+.intro-title { font-size: 14px; font-weight: 700; margin-bottom: 3px; transition: color 0.3s; }
+.intro-title.light { color: #294e69; }
+.intro-title.dark  { color: #e8eff7; }
+.intro-sub { font-size: 9px; line-height: 1.4; transition: color 0.3s; }
+.intro-sub.light { color: #9ab4c8; }
+.intro-sub.dark  { color: #4a87b4; }
+
+/* FILTER TABS */
+.filter-tabs { display: flex; gap: 5px; flex-shrink: 0; }
+.ftab { padding: 4px 13px; border-radius: 8px; font-size: 10px; font-weight: 600; cursor: pointer; transition: all 0.3s; }
+.ftab.on.light  { background: #65abde; color: white; }
+.ftab.on.dark   { background: #4a87b4; color: white; }
+.ftab.off.light { background: white; color: #4a87b4; border: 0.5px solid #adcbe3; }
+.ftab.off.dark  { background: #243647; color: #65abde; border: 0.5px solid #294e69; }
+.alert-counter { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: 50%; font-size: 8px; font-weight: 700; background: #e24b4a; color: white; margin-left: 4px; vertical-align: middle; }
+
+/* TABLE CARD */
+.table-card { flex: 1; border-radius: 13px; overflow: hidden; display: flex; flex-direction: column; transition: border-color 0.3s; }
+.table-card.light { border: 0.5px solid #adcbe3; }
+.table-card.dark  { border: 0.5px solid #294e69; }
+
+/* TABLE HEAD */
+.tbl-head { display: grid; grid-template-columns: 2fr 0.85fr 0.85fr 1fr 1fr 0.6fr; flex-shrink: 0; transition: background 0.3s; }
+.tbl-head.light { background: #294e69; }
+.tbl-head.dark  { background: #162534; }
+.th { padding: 6px 11px; font-size: 9px; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; transition: color 0.3s; }
+.th.light { color: #adcbe3; }
+.th.dark  { color: #65abde; }
+.th.center { text-align: center; }
+.th.right  { text-align: right; }
+
+/* DATA ROWS */
+.tbl-body { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
+.data-row { display: grid; grid-template-columns: 2fr 0.85fr 0.85fr 1fr 1fr 0.6fr; transition: background 0.3s; }
+.data-row + .data-row { border-top: 0.5px solid; }
+.data-row.light + .data-row.light { border-color: #ddeaf5; }
+.data-row.dark  + .data-row.dark  { border-color: #243647; }
+.data-row.re.light { background: white; }
+.data-row.re.dark  { background: #1f3244; }
+.data-row.ro.light { background: #f8fbfd; }
+.data-row.ro.dark  { background: #1c2e3e; }
+
+.td { padding: 7px 11px; font-size: 11px; display: flex; align-items: center; gap: 7px; transition: color 0.3s; }
+.td.light { color: #294e69; }
+.td.dark  { color: #c8dde9; }
+.td.muted.light { color: #9ab4c8; font-size: 10px; }
+.td.muted.dark  { color: #4a87b4; font-size: 10px; }
+.td.center { justify-content: center; }
+.td.right  { justify-content: flex-end; font-weight: 600; }
+
+.prod-icon { width: 22px; height: 22px; border-radius: 6px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.prod-icon i { font-size: 11px; color: white; }
+.prod-name { font-weight: 500; font-size: 11px; }
+
+.stock-num { font-size: 12px; font-weight: 700; }
+.stock-num.critical.light { color: #a32d2d; }
+.stock-num.critical.dark  { color: #f09595; }
+.stock-num.warn.light     { color: #854f0b; }
+.stock-num.warn.dark      { color: #fac775; }
+.stock-num.ok.light       { color: #0f6e56; }
+.stock-num.ok.dark        { color: #5eceba; }
+
+.s-pill { padding: 3px 9px; border-radius: 6px; font-size: 9px; font-weight: 700; display: flex; align-items: center; gap: 4px; }
+.s-pill i { font-size: 9px; }
+.s-out.light  { background: #fce9e9; color: #a32d2d; }
+.s-out.dark   { background: #3a1414; color: #f09595; }
+.s-low.light  { background: #fff3e0; color: #854f0b; }
+.s-low.dark   { background: #2e1f08; color: #fac775; }
+.s-ok.light   { background: #d6f0eb; color: #0f6e56; }
+.s-ok.dark    { background: #0f3a2e; color: #5eceba; }
+
+.more-btn { width: 22px; height: 22px; border-radius: 6px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: background 0.3s; }
+.more-btn.light { background: #e8eff7; }
+.more-btn.dark  { background: #243647; }
+.more-btn i { font-size: 13px; }
+.more-btn.light i { color: #4a87b4; }
+.more-btn.dark  i { color: #65abde; }
+
+/* PAGINATION */
+.pagination { display: flex; align-items: center; justify-content: space-between; padding: 5px 11px; flex-shrink: 0; border-radius: 0 0 12px 12px; transition: background 0.3s, border-color 0.3s; }
+.pagination.light { background: #f5f9fd; border-top: 0.5px solid #ddeaf5; }
+.pagination.dark  { background: #1a2d3e; border-top: 0.5px solid #243647; }
+.pag-text { font-size: 9px; font-weight: 500; transition: color 0.3s; }
+.pag-text.light { color: #9ab4c8; }
+.pag-text.dark  { color: #4a87b4; }
+.pag-btns { display: flex; gap: 5px; }
+.pag-btn { width: 24px; height: 24px; border-radius: 7px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: background 0.3s; }
+.pag-btn.light { background: white; border: 0.5px solid #adcbe3; }
+.pag-btn.dark  { background: #243647; border: 0.5px solid #4a87b4; }
+.pag-btn i { font-size: 12px; }
+.pag-btn.light i { color: #4a87b4; }
+.pag-btn.dark  i { color: #65abde; }
+
+/* RIGHT PANEL */
+.right-panel { width: 186px; flex-shrink: 0; display: flex; flex-direction: column; padding: 10px 14px 10px 8px; gap: 8px; overflow: hidden; }
+
+/* ACCIONES SUGERIDAS */
+.action-card { border-radius: 13px; overflow: hidden; flex-shrink: 0; transition: border-color 0.3s; }
+.action-card.light { border: 0.5px solid #adcbe3; }
+.action-card.dark  { border: 0.5px solid #294e69; }
+.action-header { padding: 8px 12px; display: flex; align-items: center; gap: 7px; transition: background 0.3s; }
+.action-header.light { background: #deeef8; }
+.action-header.dark  { background: #1e3a52; }
+.action-header i { font-size: 14px; }
+.action-header.light i { color: #65abde; }
+.action-header.dark  i { color: #65abde; }
+.action-htitle { font-size: 11px; font-weight: 700; transition: color 0.3s; }
+.action-htitle.light { color: #294e69; }
+.action-htitle.dark  { color: #e8eff7; }
+.action-sub { font-size: 9px; padding: 5px 12px 6px; line-height: 1.4; transition: color 0.3s; }
+.action-sub.light { color: #9ab4c8; background: white; }
+.action-sub.dark  { color: #4a87b4; background: #243647; }
+.action-btns { display: flex; flex-direction: column; gap: 0; }
+.action-row { display: flex; align-items: center; gap: 8px; padding: 7px 12px; cursor: pointer; transition: background 0.3s; }
+.action-row + .action-row { border-top: 0.5px solid; }
+.action-row.light + .action-row.light { border-color: #ddeaf5; }
+.action-row.dark  + .action-row.dark  { border-color: #294e69; }
+.action-row.primary.light { background: #65abde; }
+.action-row.primary.dark  { background: #4a87b4; }
+.action-row.secondary.light { background: white; }
+.action-row.secondary.dark  { background: #243647; }
+.action-row i { font-size: 13px; flex-shrink: 0; }
+.action-row.primary i    { color: white; }
+.action-row.secondary.light i { color: #4a87b4; }
+.action-row.secondary.dark  i { color: #65abde; }
+.action-row-text { font-size: 10px; font-weight: 600; line-height: 1.2; }
+.action-row.primary .action-row-text    { color: white; }
+.action-row.secondary.light .action-row-text { color: #294e69; }
+.action-row.secondary.dark  .action-row-text { color: #c8dde9; }
+
+/* IMPACTO FINANCIERO */
+.finance-card { border-radius: 13px; overflow: hidden; flex-shrink: 0; transition: border-color 0.3s; }
+.finance-card.light { border: 0.5px solid #adcbe3; }
+.finance-card.dark  { border: 0.5px solid #294e69; }
+.finance-header { padding: 6px 12px 4px; transition: background 0.3s; }
+.finance-header.light { background: #294e69; }
+.finance-header.dark  { background: #162534; }
+.finance-label { font-size: 8px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+.finance-label.light { color: #adcbe3; }
+.finance-label.dark  { color: #65abde; }
+.finance-body { padding: 8px 12px 10px; position: relative; overflow: hidden; transition: background 0.3s; }
+.finance-body.light { background: white; }
+.finance-body.dark  { background: #243647; }
+.finance-amount { font-size: 20px; font-weight: 700; letter-spacing: -0.5px; transition: color 0.3s; }
+.finance-amount.light { color: #294e69; }
+.finance-amount.dark  { color: #e8eff7; }
+.finance-note { font-size: 9px; margin-top: 2px; transition: color 0.3s; }
+.finance-note.light { color: #9ab4c8; }
+.finance-note.dark  { color: #4a87b4; }
+.finance-chart { position: absolute; right: 10px; bottom: 8px; opacity: 0.18; }
+.finance-chart.dark { opacity: 0.25; }
+.trend-line { stroke: #294e69; stroke-width: 2.5; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.trend-line.dark { stroke: #65abde; }
+
+/* BOTTOM NAV */
+.bottom-nav { height: 40px; display: flex; align-items: stretch; flex-shrink: 0; transition: background 0.4s, border-color 0.4s; }
+.bottom-nav.light { background: white; border-top: 0.5px solid #adcbe3; }
+.bottom-nav.dark  { background: #162534; border-top: 0.5px solid #294e69; }
+.tab-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; cursor: pointer; position: relative; }
+.tab-item i { font-size: 17px; transition: color 0.3s; }
+.tab-item span { font-size: 8px; font-weight: 500; transition: color 0.3s; }
+.tab-item.active.light i, .tab-item.active.light span { color: #65abde; }
+.tab-item.active.dark  i, .tab-item.active.dark  span { color: #65abde; }
+.tab-item.inactive.light i, .tab-item.inactive.light span { color: #adcbe3; }
+.tab-item.inactive.dark  i, .tab-item.inactive.dark  span { color: #3a5a72; }
+.tab-indicator { position: absolute; top: 0; left: 50%; transform: translateX(-50%); width: 28px; height: 2px; border-radius: 0 0 2px 2px; }
+.tab-indicator.light { background: #65abde; }
+.tab-indicator.dark  { background: #65abde; }
+.tab-notif { position: absolute; top: 4px; right: calc(50% - 14px); width: 14px; height: 14px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 7px; font-weight: 700; background: #e24b4a; color: white; }
+
+.home-indicator { height: 4px; display: flex; justify-content: center; align-items: center; flex-shrink: 0; }
+.hi-bar { width: 70px; height: 3px; border-radius: 2px; }
+.hi-bar.light { background: #294e69; opacity: 0.18; }
+.hi-bar.dark  { background: #adcbe3; opacity: 0.25; }
+</style>
+
+<div class="stage">
+  <div class="mode-toggle" onclick="toggleMode()" role="button">
+    <span id="mode-label">Modo claro</span>
+    <div class="toggle-pill" id="pill"></div>
+  </div>
+
+  <div class="tablet-outer">
+    <div class="camera-dot"></div>
+    <div class="tablet-inner light" id="screen">
+
+      <!-- STATUS -->
+      <div class="status-bar light" id="sb">
+        <span>9:41</span>
+        <div class="status-icons">
+          <div class="signal-bar" style="height:6px"></div>
+          <div class="signal-bar" style="height:9px"></div>
+          <div class="signal-bar" style="height:12px"></div>
+          <i class="ti ti-wifi" style="font-size:13px;margin-left:3px" aria-hidden="true"></i>
+          <i class="ti ti-battery-2" style="font-size:13px;margin-left:3px" aria-hidden="true"></i>
+        </div>
+      </div>
+
+      <!-- HEADER -->
+      <div class="top-header light" id="th">
+        <div class="header-left">
+          <div class="brand-chip light" id="bchip">
+            <div class="brand-dot light" id="bdot"><i class="ti ti-sparkles" aria-hidden="true"></i></div>
+            <span class="brand-text light" id="btxt">CLEANSTOCK</span>
+          </div>
+          <span class="sep">/</span>
+          <div class="page-title light" id="ptitle">Centro de Alertas</div>
+        </div>
+        <div class="header-right">
+          <div class="icon-btn light" id="ib1"><i class="ti ti-adjustments-horizontal" aria-hidden="true"></i></div>
+          <div class="icon-btn light" id="ib2"><i class="ti ti-download" aria-hidden="true"></i></div>
+          <div class="mark-btn light" id="mbtn">
+            <i class="ti ti-checks" aria-hidden="true"></i>
+            Marcar resueltas
+          </div>
+        </div>
+      </div>
+
+      <!-- BODY -->
+      <div class="body-area">
+
+        <!-- LEFT PANEL -->
+        <div class="left-panel">
+
+          <div class="page-intro">
+            <div class="intro-title light" id="ititle">Centro de Alertas</div>
+            <div class="intro-sub light" id="isub">Monitoree el inventario en tiempo real. Gestione existencias críticas y productos agotados.</div>
+          </div>
+
+          <div class="filter-tabs">
+            <div class="ftab on light" id="ft1">Activas <span class="alert-counter">12</span></div>
+            <div class="ftab off light" id="ft2">Resueltas</div>
+            <div class="ftab off light" id="ft3">Todas</div>
+          </div>
+
+          <div class="table-card light" id="tcard">
+
+            <div class="tbl-head light" id="thead">
+              <div class="th light">Producto</div>
+              <div class="th light right">Precio</div>
+              <div class="th light center">Stock actual</div>
+              <div class="th light center">Estado</div>
+              <div class="th light center">Fecha</div>
+              <div class="th light center">Acción</div>
+            </div>
+
+            <div class="tbl-body" id="tbody">
+
+              <div class="data-row re light">
+                <div class="td light"><div class="prod-icon" style="background:#65abde"><i class="ti ti-droplet" aria-hidden="true"></i></div><span class="prod-name">Jabón Líquido Industrial 5L</span></div>
+                <div class="td right light">$24.50</div>
+                <div class="td center light"><span class="stock-num critical light">2</span></div>
+                <div class="td center"><span class="s-pill s-out light" id="sp1"><i class="ti ti-circle-filled" aria-hidden="true"></i>Agotado</span></div>
+                <div class="td muted light center">24 Oct, 08:30</div>
+                <div class="td center"><div class="more-btn light" id="mb1"><i class="ti ti-dots-vertical" aria-hidden="true"></i></div></div>
+              </div>
+
+              <div class="data-row ro light">
+                <div class="td light"><div class="prod-icon" style="background:#4a87b4"><i class="ti ti-wiper" aria-hidden="true"></i></div><span class="prod-name">Mopa Microfibra Pro</span></div>
+                <div class="td right light">$12.99</div>
+                <div class="td center light"><span class="stock-num warn light">15</span></div>
+                <div class="td center"><span class="s-pill s-low light" id="sp2"><i class="ti ti-circle-filled" aria-hidden="true"></i>Bajo Stock</span></div>
+                <div class="td muted light center">23 Oct, 16:45</div>
+                <div class="td center"><div class="more-btn light" id="mb2"><i class="ti ti-dots-vertical" aria-hidden="true"></i></div></div>
+              </div>
+
+              <div class="data-row re light">
+                <div class="td light"><div class="prod-icon" style="background:#2e9e8a"><i class="ti ti-sparkles" aria-hidden="true"></i></div><span class="prod-name">Desinfectante Multiusos</span></div>
+                <div class="td right light">$8.75</div>
+                <div class="td center light"><span class="stock-num critical light">0</span></div>
+                <div class="td center"><span class="s-pill s-out light" id="sp3"><i class="ti ti-circle-filled" aria-hidden="true"></i>Agotado</span></div>
+                <div class="td muted light center">23 Oct, 11:20</div>
+                <div class="td center"><div class="more-btn light" id="mb3"><i class="ti ti-dots-vertical" aria-hidden="true"></i></div></div>
+              </div>
+
+              <div class="data-row ro light">
+                <div class="td light"><div class="prod-icon" style="background:#294e69"><i class="ti ti-package" aria-hidden="true"></i></div><span class="prod-name">Papel Toalla Pack 12x</span></div>
+                <div class="td right light">$45.00</div>
+                <div class="td center light"><span class="stock-num warn light">45</span></div>
+                <div class="td center"><span class="s-pill s-low light" id="sp4"><i class="ti ti-circle-filled" aria-hidden="true"></i>Bajo Stock</span></div>
+                <div class="td muted light center">22 Oct, 14:15</div>
+                <div class="td center"><div class="more-btn light" id="mb4"><i class="ti ti-dots-vertical" aria-hidden="true"></i></div></div>
+              </div>
+
+            </div>
+
+            <div class="pagination light" id="pag">
+              <span class="pag-text light">Mostrando 4 de 12 alertas activas</span>
+              <div class="pag-btns">
+                <div class="pag-btn light" id="pb1"><i class="ti ti-chevron-left" aria-hidden="true"></i></div>
+                <div class="pag-btn light" id="pb2"><i class="ti ti-chevron-right" aria-hidden="true"></i></div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- RIGHT PANEL -->
+        <div class="right-panel">
+
+          <!-- ACCIONES SUGERIDAS -->
+          <div class="action-card light" id="acard">
+            <div class="action-header light" id="ah">
+              <i class="ti ti-bulb" aria-hidden="true"></i>
+              <span class="action-htitle light" id="aht">Acciones sugeridas</span>
+            </div>
+            <div class="action-sub light" id="asub">Basado en sus alertas actuales, le recomendamos:</div>
+            <div class="action-btns">
+              <div class="action-row primary light" id="ar1">
+                <i class="ti ti-shopping-cart" aria-hidden="true"></i>
+                <span class="action-row-text">Generar orden de compra masiva</span>
+              </div>
+              <div class="action-row secondary light" id="ar2">
+                <i class="ti ti-address-book" aria-hidden="true"></i>
+                <span class="action-row-text">Contactar proveedores críticos</span>
+              </div>
+              <div class="action-row secondary light" id="ar3">
+                <i class="ti ti-adjustments" aria-hidden="true"></i>
+                <span class="action-row-text">Ajustar puntos de pedido</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- IMPACTO FINANCIERO -->
+          <div class="finance-card light" id="fcard">
+            <div class="finance-header light" id="fh">
+              <div class="finance-label light" id="fl">Impacto financiero</div>
+            </div>
+            <div class="finance-body light" id="fb">
+              <div class="finance-amount light" id="fa">$3,420.00</div>
+              <div class="finance-note light" id="fn">Venta potencial retenida por falta de stock.</div>
+              <div class="finance-chart" id="fchart">
+                <svg width="60" height="36" viewBox="0 0 60 36">
+                  <polyline class="trend-line" points="0,28 12,20 22,24 34,10 44,16 60,4"/>
+                </svg>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- BOTTOM NAV -->
+      <div class="bottom-nav light" id="bnav">
+        <div class="tab-item active light" id="t1">
+          <div class="tab-indicator light" id="ti1"></div>
+          <i class="ti ti-layout-grid" aria-hidden="true"></i>
+          <span>Inicio</span>
+        </div>
+        <div class="tab-item inactive light" id="t2"><i class="ti ti-package" aria-hidden="true"></i><span>Inventario</span></div>
+        <div class="tab-item inactive light" id="t3"><i class="ti ti-chart-line" aria-hidden="true"></i><span>Ventas</span></div>
+        <div class="tab-item inactive light" id="t4"><i class="ti ti-truck-delivery" aria-hidden="true"></i><span>Proveedores</span></div>
+        <div class="tab-item inactive light" id="t5"><i class="ti ti-receipt" aria-hidden="true"></i><span>Reg. Venta</span></div>
+        <div class="tab-item inactive light" id="t6">
+          <div class="tab-notif">12</div>
+          <i class="ti ti-bell" aria-hidden="true"></i>
+          <span>Alertas</span>
+        </div>
+      </div>
+
+      <div class="home-indicator">
+        <div class="hi-bar light" id="hi"></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+var dark = false;
+var ids = [
+  'screen','sb','th','bchip','bdot','btxt','ptitle',
+  'ib1','ib2','mbtn',
+  'ititle','isub',
+  'ft1','ft2','ft3',
+  'tcard','thead',
+  'sp1','sp2','sp3','sp4',
+  'mb1','mb2','mb3','mb4',
+  'pag','pb1','pb2',
+  'acard','ah','aht','asub','ar1','ar2','ar3',
+  'fcard','fh','fb','fa','fn','fl',
+  'bnav','t1','t2','t3','t4','t5','t6','ti1','hi'
+];
+function toggleMode() {
+  dark = !dark;
+  var m = dark ? 'dark' : 'light', o = dark ? 'light' : 'dark';
+  ids.forEach(function(id){ var el=document.getElementById(id); if(el){el.classList.remove(o);el.classList.add(m);} });
+  document.querySelectorAll('.th,.td,.data-row,.pag-text,.stock-num').forEach(function(el){el.classList.remove(o);el.classList.add(m);});
+  var fc = document.getElementById('fchart');
+  if(fc){ fc.classList.toggle('dark',dark); }
+  var tl = document.querySelector('.trend-line');
+  if(tl){ tl.classList.toggle('dark',dark); }
+  document.getElementById('pill').classList.toggle('dark',dark);
+  document.getElementById('mode-label').textContent = dark ? 'Modo oscuro' : 'Modo claro';
+}
+</script>

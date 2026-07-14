@@ -1,0 +1,379 @@
+
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif; }
+.stage { display: flex; flex-direction: column; align-items: center; padding: 1.5rem 0 1rem; }
+
+.mode-toggle { display: flex; align-items: center; gap: 10px; margin-bottom: 1.25rem; background: var(--color-background-secondary); border: 0.5px solid var(--color-border-tertiary); border-radius: 20px; padding: 6px 14px; font-size: 13px; color: var(--color-text-secondary); cursor: pointer; user-select: none; }
+.toggle-pill { width: 36px; height: 20px; border-radius: 10px; background: #adcbe3; position: relative; transition: background 0.3s; }
+.toggle-pill.dark { background: #294e69; }
+.toggle-pill::after { content: ''; position: absolute; width: 14px; height: 14px; border-radius: 50%; background: white; top: 3px; left: 3px; transition: transform 0.3s; }
+.toggle-pill.dark::after { transform: translateX(16px); }
+
+.tablet-outer { width: 640px; height: 460px; border-radius: 28px; padding: 11px; background: #1a1a1e; box-shadow: 0 0 0 1.5px #3a3a3c, 0 20px 50px rgba(0,0,0,0.4); position: relative; }
+.camera-dot { position: absolute; top: 50%; left: 18px; transform: translateY(-50%); width: 8px; height: 8px; border-radius: 50%; background: #2a2a2c; z-index: 10; }
+.tablet-inner { width: 100%; height: 100%; border-radius: 18px; overflow: hidden; display: flex; flex-direction: column; transition: background 0.4s; }
+.tablet-inner.light { background: #e8eff7; }
+.tablet-inner.dark  { background: #1c2e3e; }
+
+/* STATUS */
+.status-bar { height: 24px; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; font-size: 11px; font-weight: 500; flex-shrink: 0; transition: color 0.3s; }
+.status-bar.light { color: #294e69; }
+.status-bar.dark  { color: #adcbe3; }
+.status-icons { display: flex; gap: 5px; align-items: center; }
+.signal-bar { width: 3px; border-radius: 1px; background: currentColor; }
+
+/* HEADER */
+.top-header { height: 44px; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; flex-shrink: 0; transition: background 0.4s, border-color 0.4s; }
+.top-header.light { background: white; border-bottom: 0.5px solid #adcbe3; }
+.top-header.dark  { background: #162534; border-bottom: 0.5px solid #294e69; }
+
+.header-left { display: flex; align-items: center; gap: 9px; }
+.brand-chip { display: flex; align-items: center; gap: 6px; padding: 4px 10px 4px 6px; border-radius: 18px; transition: background 0.3s; }
+.brand-chip.light { background: #e8eff7; }
+.brand-chip.dark  { background: #243647; }
+.brand-dot { width: 22px; height: 22px; border-radius: 7px; display: flex; align-items: center; justify-content: center; transition: background 0.3s; }
+.brand-dot.light { background: #65abde; }
+.brand-dot.dark  { background: #294e69; }
+.brand-dot i { font-size: 12px; color: white; }
+.brand-text { font-size: 10px; font-weight: 700; letter-spacing: 0.08em; transition: color 0.3s; }
+.brand-text.light { color: #294e69; }
+.brand-text.dark  { color: #65abde; }
+.sep { font-size: 12px; font-weight: 300; color: #adcbe3; }
+.page-title { font-size: 15px; font-weight: 600; transition: color 0.3s; }
+.page-title.light { color: #294e69; }
+.page-title.dark  { color: #e8eff7; }
+
+.header-right { display: flex; align-items: center; gap: 7px; }
+.icon-btn { width: 30px; height: 30px; border-radius: 9px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: background 0.3s; }
+.icon-btn.light { background: #e8eff7; }
+.icon-btn.dark  { background: #243647; }
+.icon-btn i { font-size: 15px; }
+.icon-btn.light i { color: #4a87b4; }
+.icon-btn.dark  i { color: #65abde; }
+.add-btn { height: 30px; border-radius: 9px; display: flex; align-items: center; gap: 5px; padding: 0 12px; font-size: 11px; font-weight: 600; cursor: pointer; transition: background 0.3s; }
+.add-btn.light { background: #65abde; color: white; }
+.add-btn.dark  { background: #4a87b4; color: white; }
+.add-btn i { font-size: 12px; }
+
+/* TOOLBAR */
+.toolbar { height: 40px; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; flex-shrink: 0; transition: background 0.3s; }
+.toolbar.light { background: #f0f6fb; border-bottom: 0.5px solid #ddeaf5; }
+.toolbar.dark  { background: #1a2d3e; border-bottom: 0.5px solid #243647; }
+.search-bar { display: flex; align-items: center; gap: 7px; padding: 6px 13px; border-radius: 10px; font-size: 11px; width: 260px; transition: background 0.3s, border-color 0.3s; }
+.search-bar.light { background: white; border: 0.5px solid #adcbe3; color: #9ab4c8; }
+.search-bar.dark  { background: #243647; border: 0.5px solid #4a87b4; color: #4a87b4; }
+.search-bar i { font-size: 13px; flex-shrink: 0; }
+.filter-pills { display: flex; gap: 6px; }
+.fpill { padding: 4px 11px; border-radius: 8px; font-size: 10px; font-weight: 500; cursor: pointer; transition: all 0.3s; }
+.fpill.on.light  { background: #65abde; color: white; border: 0.5px solid #65abde; }
+.fpill.on.dark   { background: #4a87b4; color: white; border: 0.5px solid #4a87b4; }
+.fpill.off.light { background: white; color: #4a87b4; border: 0.5px solid #adcbe3; }
+.fpill.off.dark  { background: #243647; color: #65abde; border: 0.5px solid #294e69; }
+
+/* MAIN CONTENT */
+.main-content { flex: 1; overflow: hidden; padding: 10px 16px 8px; display: flex; flex-direction: column; gap: 0; }
+
+/* TABLE CARD */
+.table-card { flex: 1; border-radius: 14px; overflow: hidden; display: flex; flex-direction: column; transition: border-color 0.3s; }
+.table-card.light { border: 0.5px solid #adcbe3; }
+.table-card.dark  { border: 0.5px solid #294e69; }
+
+/* TABLE HEADER */
+.tbl-head { display: grid; grid-template-columns: 2fr 1.4fr 1.4fr 1fr 80px; gap: 0; flex-shrink: 0; transition: background 0.3s; }
+.tbl-head.light { background: #294e69; }
+.tbl-head.dark  { background: #162534; }
+.th-cell { padding: 7px 12px; font-size: 9px; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; transition: color 0.3s; }
+.th-cell.light { color: #adcbe3; }
+.th-cell.dark  { color: #65abde; }
+.th-cell.right { text-align: right; }
+.th-cell.center { text-align: center; }
+
+/* TABLE BODY */
+.tbl-body { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
+
+/* CATEGORY HEADER ROW */
+.cat-row { display: grid; grid-template-columns: 2fr 1.4fr 1.4fr 1fr 80px; gap: 0; flex-shrink: 0; transition: background 0.3s; }
+.cat-row.light { background: #deeef8; }
+.cat-row.dark  { background: #1e3a52; }
+.cat-cell { padding: 5px 12px; display: flex; align-items: center; gap: 7px; }
+.cat-emoji { font-size: 13px; }
+.cat-name { font-size: 11px; font-weight: 700; letter-spacing: 0.02em; transition: color 0.3s; }
+.cat-name.light { color: #294e69; }
+.cat-name.dark  { color: #adcbe3; }
+.cat-count { font-size: 9px; padding: 2px 7px; border-radius: 5px; font-weight: 600; transition: background 0.3s, color 0.3s; }
+.cat-count.light { background: #adcbe3; color: #294e69; }
+.cat-count.dark  { background: #294e69; color: #adcbe3; }
+
+/* PROVIDER ROW */
+.prov-row { display: grid; grid-template-columns: 2fr 1.4fr 1.4fr 1fr 80px; gap: 0; transition: background 0.3s; }
+.prov-row + .prov-row { border-top: 0.5px solid; }
+.prov-row.light + .prov-row.light { border-color: #ddeaf5; }
+.prov-row.dark  + .prov-row.dark  { border-color: #243647; }
+.prov-row.re.light { background: white; }
+.prov-row.re.dark  { background: #1f3244; }
+.prov-row.ro.light { background: #f8fbfd; }
+.prov-row.ro.dark  { background: #1c2e3e; }
+
+.prov-cell { padding: 7px 12px; display: flex; align-items: center; gap: 8px; font-size: 12px; transition: color 0.3s; }
+.prov-cell.light { color: #294e69; }
+.prov-cell.dark  { color: #c8dde9; }
+.prov-cell.muted.light { color: #9ab4c8; font-size: 11px; }
+.prov-cell.muted.dark  { color: #4a87b4; font-size: 11px; }
+.prov-cell.center { justify-content: center; }
+.prov-cell.right { justify-content: flex-end; }
+
+.prov-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.prov-name { font-weight: 500; }
+
+.status-pill { padding: 3px 9px; border-radius: 6px; font-size: 9px; font-weight: 600; }
+.s-active.light  { background: #d6f0eb; color: #0f6e56; }
+.s-active.dark   { background: #0f3a2e; color: #5eceba; }
+.s-review.light  { background: #fff3e0; color: #854f0b; }
+.s-review.dark   { background: #2e1f08; color: #fac775; }
+
+.detail-btn { width: 26px; height: 26px; border-radius: 8px; display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; transition: background 0.3s; }
+.detail-btn.light { background: #e8eff7; }
+.detail-btn.dark  { background: #243647; }
+.detail-btn i { font-size: 12px; }
+.detail-btn.light i { color: #65abde; }
+.detail-btn.dark  i { color: #65abde; }
+
+/* STATS FOOTER */
+.stats-footer { display: flex; align-items: center; justify-content: space-between; padding: 6px 14px; flex-shrink: 0; border-radius: 0 0 13px 13px; transition: background 0.3s; }
+.stats-footer.light { background: #294e69; }
+.stats-footer.dark  { background: #162534; }
+.stat-text { font-size: 10px; font-weight: 600; display: flex; align-items: center; gap: 5px; }
+.stat-text.light { color: #adcbe3; }
+.stat-text.dark  { color: #65abde; }
+.stat-text i { font-size: 12px; }
+.stat-highlight { font-size: 11px; font-weight: 700; }
+.stat-highlight.light { color: white; }
+.stat-highlight.dark  { color: #adcbe3; }
+
+/* BOTTOM NAV */
+.bottom-nav { height: 40px; display: flex; align-items: stretch; flex-shrink: 0; transition: background 0.4s, border-color 0.4s; }
+.bottom-nav.light { background: white; border-top: 0.5px solid #adcbe3; }
+.bottom-nav.dark  { background: #162534; border-top: 0.5px solid #294e69; }
+.tab-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; cursor: pointer; position: relative; }
+.tab-item i { font-size: 17px; transition: color 0.3s; }
+.tab-item span { font-size: 8px; font-weight: 500; transition: color 0.3s; }
+.tab-item.active.light i, .tab-item.active.light span { color: #65abde; }
+.tab-item.active.dark  i, .tab-item.active.dark  span { color: #65abde; }
+.tab-item.inactive.light i, .tab-item.inactive.light span { color: #adcbe3; }
+.tab-item.inactive.dark  i, .tab-item.inactive.dark  span { color: #3a5a72; }
+.tab-indicator { position: absolute; top: 0; left: 50%; transform: translateX(-50%); width: 28px; height: 2px; border-radius: 0 0 2px 2px; }
+.tab-indicator.light { background: #65abde; }
+.tab-indicator.dark  { background: #65abde; }
+.tab-notif { position: absolute; top: 4px; right: calc(50% - 13px); width: 13px; height: 13px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 7px; font-weight: 700; background: #e24b4a; color: white; }
+
+.home-indicator { height: 4px; display: flex; justify-content: center; align-items: center; flex-shrink: 0; }
+.hi-bar { width: 70px; height: 3px; border-radius: 2px; }
+.hi-bar.light { background: #294e69; opacity: 0.18; }
+.hi-bar.dark  { background: #adcbe3; opacity: 0.25; }
+</style>
+
+<div class="stage">
+  <div class="mode-toggle" onclick="toggleMode()" role="button" aria-label="Cambiar modo">
+    <span id="mode-label">Modo claro</span>
+    <div class="toggle-pill" id="pill"></div>
+  </div>
+
+  <div class="tablet-outer">
+    <div class="camera-dot"></div>
+    <div class="tablet-inner light" id="screen">
+
+      <!-- STATUS -->
+      <div class="status-bar light" id="sb">
+        <span>9:41</span>
+        <div class="status-icons">
+          <div class="signal-bar" style="height:6px"></div>
+          <div class="signal-bar" style="height:9px"></div>
+          <div class="signal-bar" style="height:12px"></div>
+          <i class="ti ti-wifi" style="font-size:13px;margin-left:3px" aria-hidden="true"></i>
+          <i class="ti ti-battery-2" style="font-size:13px;margin-left:3px" aria-hidden="true"></i>
+        </div>
+      </div>
+
+      <!-- HEADER -->
+      <div class="top-header light" id="th">
+        <div class="header-left">
+          <div class="brand-chip light" id="bchip">
+            <div class="brand-dot light" id="bdot"><i class="ti ti-sparkles" aria-hidden="true"></i></div>
+            <span class="brand-text light" id="btxt">CLEANSTOCK</span>
+          </div>
+          <span class="sep">/</span>
+          <div class="page-title light" id="ptitle">Proveedores</div>
+        </div>
+        <div class="header-right">
+          <div class="icon-btn light" id="ib1"><i class="ti ti-download" aria-hidden="true"></i></div>
+          <div class="icon-btn light" id="ib2"><i class="ti ti-adjustments-horizontal" aria-hidden="true"></i></div>
+          <div class="add-btn light" id="abtn">
+            <i class="ti ti-plus" aria-hidden="true"></i>
+            Agregar proveedor
+          </div>
+        </div>
+      </div>
+
+      <!-- TOOLBAR -->
+      <div class="toolbar light" id="tb">
+        <div class="search-bar light" id="sbar">
+          <i class="ti ti-search" aria-hidden="true"></i>
+          Buscar proveedor o categoría…
+        </div>
+        <div class="filter-pills">
+          <div class="fpill on light" id="fp1">Todos</div>
+          <div class="fpill off light" id="fp2">Activos</div>
+          <div class="fpill off light" id="fp3">Limpieza</div>
+          <div class="fpill off light" id="fp4">Comida</div>
+          <div class="fpill off light" id="fp5">Dulces</div>
+        </div>
+      </div>
+
+      <!-- MAIN -->
+      <div class="main-content">
+        <div class="table-card light" id="tcard">
+
+          <!-- TABLE HEAD -->
+          <div class="tbl-head light" id="thead">
+            <div class="th-cell light">Categoría / Proveedor</div>
+            <div class="th-cell light">Contacto</div>
+            <div class="th-cell light">Teléfono</div>
+            <div class="th-cell light center">Estado</div>
+            <div class="th-cell light center">Detalle</div>
+          </div>
+
+          <!-- TABLE BODY -->
+          <div class="tbl-body" id="tbody">
+
+            <!-- CATEGORIA: COMIDA -->
+            <div class="cat-row light" id="cr1">
+              <div class="cat-cell">
+                <span class="cat-emoji">🥫</span>
+                <span class="cat-name light">Comida</span>
+                <span class="cat-count light" id="cc1">2 proveedores</span>
+              </div>
+            </div>
+            <div class="prov-row re light">
+              <div class="prov-cell light"><div class="prov-dot" style="background:#22c55e"></div><span class="prov-name">Whiskas</span></div>
+              <div class="prov-cell muted light">Dist. mascotas</div>
+              <div class="prov-cell muted light">+52 55 1234 5678</div>
+              <div class="prov-cell center"><span class="status-pill s-active light" id="ps1">Activo</span></div>
+              <div class="prov-cell center"><div class="detail-btn light" id="db1"><i class="ti ti-chevron-right" aria-hidden="true"></i></div></div>
+            </div>
+            <div class="prov-row ro light">
+              <div class="prov-cell light"><div class="prov-dot" style="background:#22c55e"></div><span class="prov-name">Pedigreen</span></div>
+              <div class="prov-cell muted light">Dist. mascotas</div>
+              <div class="prov-cell muted light">+52 55 8765 4321</div>
+              <div class="prov-cell center"><span class="status-pill s-active light" id="ps2">Activo</span></div>
+              <div class="prov-cell center"><div class="detail-btn light" id="db2"><i class="ti ti-chevron-right" aria-hidden="true"></i></div></div>
+            </div>
+
+            <!-- CATEGORIA: LIMPIEZA -->
+            <div class="cat-row light" id="cr2">
+              <div class="cat-cell">
+                <span class="cat-emoji">🧹</span>
+                <span class="cat-name light">Limpieza</span>
+                <span class="cat-count light" id="cc2">2 proveedores</span>
+              </div>
+            </div>
+            <div class="prov-row re light">
+              <div class="prov-cell light"><div class="prov-dot" style="background:#3b82f6"></div><span class="prov-name">Pinol</span></div>
+              <div class="prov-cell muted light">Limpieza hogar</div>
+              <div class="prov-cell muted light">+52 33 4567 8901</div>
+              <div class="prov-cell center"><span class="status-pill s-active light" id="ps3">Activo</span></div>
+              <div class="prov-cell center"><div class="detail-btn light" id="db3"><i class="ti ti-chevron-right" aria-hidden="true"></i></div></div>
+            </div>
+            <div class="prov-row ro light">
+              <div class="prov-cell light"><div class="prov-dot" style="background:#3b82f6"></div><span class="prov-name">Fabuloso</span></div>
+              <div class="prov-cell muted light">Limpieza hogar</div>
+              <div class="prov-cell muted light">+52 33 2345 6789</div>
+              <div class="prov-cell center"><span class="status-pill s-review light" id="ps4">Revisión</span></div>
+              <div class="prov-cell center"><div class="detail-btn light" id="db4"><i class="ti ti-chevron-right" aria-hidden="true"></i></div></div>
+            </div>
+
+            <!-- CATEGORIA: DULCES -->
+            <div class="cat-row light" id="cr3">
+              <div class="cat-cell">
+                <span class="cat-emoji">🍬</span>
+                <span class="cat-name light">Dulces</span>
+                <span class="cat-count light" id="cc3">2 proveedores</span>
+              </div>
+            </div>
+            <div class="prov-row re light">
+              <div class="prov-cell light"><div class="prov-dot" style="background:#ef4444"></div><span class="prov-name">Sabritas</span></div>
+              <div class="prov-cell muted light">Botanas / dulces</div>
+              <div class="prov-cell muted light">+52 81 6789 0123</div>
+              <div class="prov-cell center"><span class="status-pill s-active light" id="ps5">Activo</span></div>
+              <div class="prov-cell center"><div class="detail-btn light" id="db5"><i class="ti ti-chevron-right" aria-hidden="true"></i></div></div>
+            </div>
+            <div class="prov-row ro light">
+              <div class="prov-cell light"><div class="prov-dot" style="background:#b45309"></div><span class="prov-name">Cheetos</span></div>
+              <div class="prov-cell muted light">Botanas / dulces</div>
+              <div class="prov-cell muted light">+52 81 3456 7890</div>
+              <div class="prov-cell center"><span class="status-pill s-active light" id="ps6">Activo</span></div>
+              <div class="prov-cell center"><div class="detail-btn light" id="db6"><i class="ti ti-chevron-right" aria-hidden="true"></i></div></div>
+            </div>
+
+          </div>
+
+          <!-- STATS FOOTER -->
+          <div class="stats-footer light" id="sfooter">
+            <div class="stat-text light">
+              <i class="ti ti-layout-list" aria-hidden="true"></i>
+              Total · <span class="stat-highlight light">3 categorías</span>
+            </div>
+            <div class="stat-text light">
+              <span class="stat-highlight light">6 proveedores</span>
+              <i class="ti ti-truck-delivery" aria-hidden="true"></i>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- BOTTOM NAV -->
+      <div class="bottom-nav light" id="bnav">
+        <div class="tab-item inactive light" id="t1"><i class="ti ti-layout-grid" aria-hidden="true"></i><span>Inicio</span></div>
+        <div class="tab-item inactive light" id="t2"><i class="ti ti-package" aria-hidden="true"></i><span>Inventario</span></div>
+        <div class="tab-item inactive light" id="t3"><i class="ti ti-chart-line" aria-hidden="true"></i><span>Ventas</span></div>
+        <div class="tab-item active light" id="t4">
+          <div class="tab-indicator light" id="ti4"></div>
+          <i class="ti ti-truck-delivery" aria-hidden="true"></i>
+          <span>Proveedores</span>
+        </div>
+        <div class="tab-item inactive light" id="t5"><i class="ti ti-receipt" aria-hidden="true"></i><span>Reg. Venta</span></div>
+        <div class="tab-item inactive light" id="t6"><i class="ti ti-settings" aria-hidden="true"></i><span>Config</span></div>
+      </div>
+
+      <div class="home-indicator">
+        <div class="hi-bar light" id="hi"></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+var dark = false;
+var ids = [
+  'screen','sb','th','bchip','bdot','btxt','ptitle',
+  'ib1','ib2','abtn','tb','sbar',
+  'fp1','fp2','fp3','fp4','fp5',
+  'tcard','thead',
+  'cr1','cr2','cr3',
+  'cc1','cc2','cc3',
+  'ps1','ps2','ps3','ps4','ps5','ps6',
+  'db1','db2','db3','db4','db5','db6',
+  'sfooter',
+  'bnav','t1','t2','t3','t4','t5','t6','ti4','hi'
+];
+function toggleMode() {
+  dark = !dark;
+  var m = dark ? 'dark' : 'light', o = dark ? 'light' : 'dark';
+  ids.forEach(function(id){ var el=document.getElementById(id); if(el){el.classList.remove(o);el.classList.add(m);} });
+  document.querySelectorAll('.th-cell,.cat-name,.prov-cell,.stat-text,.stat-highlight,.prov-row').forEach(function(el){el.classList.remove(o);el.classList.add(m);});
+  document.getElementById('pill').classList.toggle('dark', dark);
+  document.getElementById('mode-label').textContent = dark ? 'Modo oscuro' : 'Modo claro';
+}
+</script>

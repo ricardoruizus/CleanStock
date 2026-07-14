@@ -1,0 +1,396 @@
+
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif; }
+.stage { display: flex; flex-direction: column; align-items: center; padding: 1.5rem 0 1rem; }
+
+.mode-toggle { display: flex; align-items: center; gap: 10px; margin-bottom: 1.25rem; background: var(--color-background-secondary); border: 0.5px solid var(--color-border-tertiary); border-radius: 20px; padding: 6px 14px; font-size: 13px; color: var(--color-text-secondary); cursor: pointer; user-select: none; }
+.toggle-pill { width: 36px; height: 20px; border-radius: 10px; background: #adcbe3; position: relative; transition: background 0.3s; }
+.toggle-pill.dark { background: #294e69; }
+.toggle-pill::after { content: ''; position: absolute; width: 14px; height: 14px; border-radius: 50%; background: white; top: 3px; left: 3px; transition: transform 0.3s; }
+.toggle-pill.dark::after { transform: translateX(16px); }
+
+.tablet-outer { width: 640px; height: 460px; border-radius: 28px; padding: 11px; background: #1a1a1e; box-shadow: 0 0 0 1.5px #3a3a3c, 0 20px 50px rgba(0,0,0,0.4); position: relative; }
+.camera-dot { position: absolute; top: 50%; left: 18px; transform: translateY(-50%); width: 8px; height: 8px; border-radius: 50%; background: #2a2a2c; z-index: 10; }
+.tablet-inner { width: 100%; height: 100%; border-radius: 18px; overflow: hidden; display: flex; flex-direction: column; transition: background 0.4s; }
+.tablet-inner.light { background: #e8eff7; }
+.tablet-inner.dark  { background: #1c2e3e; }
+
+/* STATUS */
+.status-bar { height: 24px; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; font-size: 11px; font-weight: 500; flex-shrink: 0; transition: color 0.3s; }
+.status-bar.light { color: #294e69; }
+.status-bar.dark  { color: #adcbe3; }
+.status-icons { display: flex; gap: 5px; align-items: center; }
+.signal-bar { width: 3px; border-radius: 1px; background: currentColor; }
+
+/* HEADER */
+.top-header { height: 44px; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; flex-shrink: 0; transition: background 0.4s, border-color 0.4s; }
+.top-header.light { background: white; border-bottom: 0.5px solid #adcbe3; }
+.top-header.dark  { background: #162534; border-bottom: 0.5px solid #294e69; }
+.header-left { display: flex; align-items: center; gap: 9px; }
+.brand-chip { display: flex; align-items: center; gap: 6px; padding: 4px 10px 4px 6px; border-radius: 18px; transition: background 0.3s; }
+.brand-chip.light { background: #e8eff7; }
+.brand-chip.dark  { background: #243647; }
+.brand-dot { width: 22px; height: 22px; border-radius: 7px; display: flex; align-items: center; justify-content: center; transition: background 0.3s; }
+.brand-dot.light { background: #65abde; }
+.brand-dot.dark  { background: #294e69; }
+.brand-dot i { font-size: 12px; color: white; }
+.brand-text { font-size: 10px; font-weight: 700; letter-spacing: 0.08em; transition: color 0.3s; }
+.brand-text.light { color: #294e69; }
+.brand-text.dark  { color: #65abde; }
+.sep { font-size: 12px; color: #adcbe3; }
+.page-title { font-size: 15px; font-weight: 600; transition: color 0.3s; }
+.page-title.light { color: #294e69; }
+.page-title.dark  { color: #e8eff7; }
+.header-right { display: flex; align-items: center; gap: 7px; }
+.icon-btn { width: 30px; height: 30px; border-radius: 9px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: background 0.3s; }
+.icon-btn.light { background: #e8eff7; }
+.icon-btn.dark  { background: #243647; }
+.icon-btn i { font-size: 15px; }
+.icon-btn.light i { color: #4a87b4; }
+.icon-btn.dark  i { color: #65abde; }
+.add-btn { height: 30px; border-radius: 9px; display: flex; align-items: center; gap: 5px; padding: 0 12px; font-size: 11px; font-weight: 600; cursor: pointer; transition: background 0.3s; }
+.add-btn.light { background: #65abde; color: white; }
+.add-btn.dark  { background: #4a87b4; color: white; }
+.add-btn i { font-size: 12px; }
+
+/* TOOLBAR */
+.toolbar { height: 40px; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; flex-shrink: 0; transition: background 0.3s, border-color 0.3s; }
+.toolbar.light { background: #f0f6fb; border-bottom: 0.5px solid #ddeaf5; }
+.toolbar.dark  { background: #1a2d3e; border-bottom: 0.5px solid #243647; }
+.search-bar { display: flex; align-items: center; gap: 7px; padding: 6px 12px; border-radius: 10px; font-size: 11px; width: 220px; transition: background 0.3s, border-color 0.3s; }
+.search-bar.light { background: white; border: 0.5px solid #adcbe3; color: #9ab4c8; }
+.search-bar.dark  { background: #243647; border: 0.5px solid #4a87b4; color: #4a87b4; }
+.search-bar i { font-size: 13px; flex-shrink: 0; }
+.toolbar-right { display: flex; align-items: center; gap: 6px; }
+.fpill { padding: 4px 11px; border-radius: 8px; font-size: 10px; font-weight: 500; cursor: pointer; transition: all 0.3s; }
+.fpill.on.light  { background: #65abde; color: white; border: 0.5px solid #65abde; }
+.fpill.on.dark   { background: #4a87b4; color: white; border: 0.5px solid #4a87b4; }
+.fpill.off.light { background: white; color: #4a87b4; border: 0.5px solid #adcbe3; }
+.fpill.off.dark  { background: #243647; color: #65abde; border: 0.5px solid #294e69; }
+.date-chip { display: flex; align-items: center; gap: 5px; padding: 4px 11px; border-radius: 8px; font-size: 10px; font-weight: 500; transition: background 0.3s, border-color 0.3s, color 0.3s; }
+.date-chip.light { background: white; border: 0.5px solid #adcbe3; color: #4a87b4; }
+.date-chip.dark  { background: #243647; border: 0.5px solid #4a87b4; color: #65abde; }
+.date-chip i { font-size: 12px; }
+
+/* MAIN */
+.main-content { flex: 1; overflow: hidden; padding: 10px 16px 8px; display: flex; flex-direction: column; }
+
+/* TABLE CARD */
+.table-card { flex: 1; border-radius: 14px; overflow: hidden; display: flex; flex-direction: column; transition: border-color 0.3s; }
+.table-card.light { border: 0.5px solid #adcbe3; }
+.table-card.dark  { border: 0.5px solid #294e69; }
+
+/* TABLE HEAD */
+.tbl-head { display: grid; grid-template-columns: 2.2fr 1.1fr 1fr 1fr 1.1fr 1fr 90px; flex-shrink: 0; transition: background 0.3s; }
+.tbl-head.light { background: #294e69; }
+.tbl-head.dark  { background: #162534; }
+.th { padding: 7px 12px; font-size: 9px; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; transition: color 0.3s; }
+.th.light { color: #adcbe3; }
+.th.dark  { color: #65abde; }
+.th.center { text-align: center; }
+.th.right  { text-align: right; }
+
+/* ROWS */
+.tbl-body { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
+.data-row { display: grid; grid-template-columns: 2.2fr 1.1fr 1fr 1fr 1.1fr 1fr 90px; transition: background 0.3s; }
+.data-row + .data-row { border-top: 0.5px solid; }
+.data-row.light + .data-row.light { border-color: #ddeaf5; }
+.data-row.dark  + .data-row.dark  { border-color: #243647; }
+.data-row.re.light { background: white; }
+.data-row.re.dark  { background: #1f3244; }
+.data-row.ro.light { background: #f8fbfd; }
+.data-row.ro.dark  { background: #1c2e3e; }
+
+.td { padding: 7px 12px; font-size: 11px; display: flex; align-items: center; gap: 7px; transition: color 0.3s; }
+.td.light { color: #294e69; }
+.td.dark  { color: #c8dde9; }
+.td.muted.light { color: #9ab4c8; font-size: 10px; }
+.td.muted.dark  { color: #4a87b4; font-size: 10px; }
+.td.center { justify-content: center; }
+.td.right  { justify-content: flex-end; font-weight: 500; }
+
+.prod-icon { width: 22px; height: 22px; border-radius: 6px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.prod-icon i { font-size: 11px; color: white; }
+.prod-name { font-weight: 500; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.folio-tag { font-size: 9px; font-weight: 700; padding: 2px 7px; border-radius: 5px; letter-spacing: 0.04em; transition: background 0.3s, color 0.3s; }
+.folio-tag.light { background: #e8eff7; color: #4a87b4; }
+.folio-tag.dark  { background: #1e3a52; color: #65abde; }
+
+.cant-badge { width: 24px; height: 20px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; transition: background 0.3s, color 0.3s; }
+.cant-badge.light { background: #deeef8; color: #294e69; }
+.cant-badge.dark  { background: #1e3a52; color: #adcbe3; }
+
+.status-pill { padding: 3px 9px; border-radius: 6px; font-size: 9px; font-weight: 600; }
+.s-done.light  { background: #d6f0eb; color: #0f6e56; }
+.s-done.dark   { background: #0f3a2e; color: #5eceba; }
+.s-pend.light  { background: #fff3e0; color: #854f0b; }
+.s-pend.dark   { background: #2e1f08; color: #fac775; }
+.s-cancel.light { background: #fce9e9; color: #a32d2d; }
+.s-cancel.dark  { background: #3a1414; color: #f09595; }
+
+.action-cell { display: flex; align-items: center; justify-content: center; gap: 5px; }
+.act-btn { width: 24px; height: 24px; border-radius: 7px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: background 0.3s; }
+.act-btn.view.light { background: #e8eff7; }
+.act-btn.view.dark  { background: #243647; }
+.act-btn.view i { font-size: 12px; }
+.act-btn.view.light i { color: #4a87b4; }
+.act-btn.view.dark  i { color: #65abde; }
+.act-btn.del.light { background: #fce9e9; }
+.act-btn.del.dark  { background: #3a1414; }
+.act-btn.del i { font-size: 12px; }
+.act-btn.del.light i { color: #a32d2d; }
+.act-btn.del.dark  i { color: #f09595; }
+
+/* STATS FOOTER */
+.stats-footer { display: flex; align-items: center; justify-content: space-between; padding: 6px 14px; flex-shrink: 0; border-radius: 0 0 13px 13px; transition: background 0.3s; }
+.stats-footer.light { background: #294e69; }
+.stats-footer.dark  { background: #162534; }
+.sf-group { display: flex; align-items: center; gap: 14px; }
+.sf-item { display: flex; align-items: center; gap: 5px; font-size: 10px; font-weight: 500; }
+.sf-item.light { color: #adcbe3; }
+.sf-item.dark  { color: #4a87b4; }
+.sf-item i { font-size: 12px; }
+.sf-val { font-size: 11px; font-weight: 700; }
+.sf-val.light { color: white; }
+.sf-val.dark  { color: #adcbe3; }
+
+/* BOTTOM NAV */
+.bottom-nav { height: 40px; display: flex; align-items: stretch; flex-shrink: 0; transition: background 0.4s, border-color 0.4s; }
+.bottom-nav.light { background: white; border-top: 0.5px solid #adcbe3; }
+.bottom-nav.dark  { background: #162534; border-top: 0.5px solid #294e69; }
+.tab-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; cursor: pointer; position: relative; }
+.tab-item i { font-size: 17px; transition: color 0.3s; }
+.tab-item span { font-size: 8px; font-weight: 500; transition: color 0.3s; }
+.tab-item.active.light i, .tab-item.active.light span { color: #65abde; }
+.tab-item.active.dark  i, .tab-item.active.dark  span { color: #65abde; }
+.tab-item.inactive.light i, .tab-item.inactive.light span { color: #adcbe3; }
+.tab-item.inactive.dark  i, .tab-item.inactive.dark  span { color: #3a5a72; }
+.tab-indicator { position: absolute; top: 0; left: 50%; transform: translateX(-50%); width: 28px; height: 2px; border-radius: 0 0 2px 2px; }
+.tab-indicator.light { background: #65abde; }
+.tab-indicator.dark  { background: #65abde; }
+
+.home-indicator { height: 4px; display: flex; justify-content: center; align-items: center; flex-shrink: 0; }
+.hi-bar { width: 70px; height: 3px; border-radius: 2px; }
+.hi-bar.light { background: #294e69; opacity: 0.18; }
+.hi-bar.dark  { background: #adcbe3; opacity: 0.25; }
+</style>
+
+<div class="stage">
+  <div class="mode-toggle" onclick="toggleMode()" role="button">
+    <span id="mode-label">Modo claro</span>
+    <div class="toggle-pill" id="pill"></div>
+  </div>
+
+  <div class="tablet-outer">
+    <div class="camera-dot"></div>
+    <div class="tablet-inner light" id="screen">
+
+      <!-- STATUS -->
+      <div class="status-bar light" id="sb">
+        <span>9:41</span>
+        <div class="status-icons">
+          <div class="signal-bar" style="height:6px"></div>
+          <div class="signal-bar" style="height:9px"></div>
+          <div class="signal-bar" style="height:12px"></div>
+          <i class="ti ti-wifi" style="font-size:13px;margin-left:3px" aria-hidden="true"></i>
+          <i class="ti ti-battery-2" style="font-size:13px;margin-left:3px" aria-hidden="true"></i>
+        </div>
+      </div>
+
+      <!-- HEADER -->
+      <div class="top-header light" id="th">
+        <div class="header-left">
+          <div class="brand-chip light" id="bchip">
+            <div class="brand-dot light" id="bdot"><i class="ti ti-sparkles" aria-hidden="true"></i></div>
+            <span class="brand-text light" id="btxt">CLEANSTOCK</span>
+          </div>
+          <span class="sep">/</span>
+          <div class="page-title light" id="ptitle">Registro de Ventas</div>
+        </div>
+        <div class="header-right">
+          <div class="icon-btn light" id="ib1"><i class="ti ti-file-export" aria-hidden="true"></i></div>
+          <div class="icon-btn light" id="ib2"><i class="ti ti-printer" aria-hidden="true"></i></div>
+          <div class="add-btn light" id="abtn">
+            <i class="ti ti-plus" aria-hidden="true"></i>
+            Nueva venta
+          </div>
+        </div>
+      </div>
+
+      <!-- TOOLBAR -->
+      <div class="toolbar light" id="tb">
+        <div class="search-bar light" id="sbar">
+          <i class="ti ti-search" aria-hidden="true"></i>
+          Buscar producto o folio…
+        </div>
+        <div class="toolbar-right">
+          <div class="date-chip light" id="dchip">
+            <i class="ti ti-calendar" aria-hidden="true"></i>
+            Jun 2026
+          </div>
+          <div class="fpill on light" id="fp1">Todos</div>
+          <div class="fpill off light" id="fp2">Completados</div>
+          <div class="fpill off light" id="fp3">Pendientes</div>
+          <div class="fpill off light" id="fp4">Cancelados</div>
+        </div>
+      </div>
+
+      <!-- MAIN -->
+      <div class="main-content">
+        <div class="table-card light" id="tcard">
+
+          <!-- HEAD -->
+          <div class="tbl-head light" id="thead">
+            <div class="th light">Producto</div>
+            <div class="th light">Folio</div>
+            <div class="th light right">Precio unit.</div>
+            <div class="th light center">Cantidad</div>
+            <div class="th light right">Total</div>
+            <div class="th light center">Fecha de venta</div>
+            <div class="th light center">Estado / Acción</div>
+          </div>
+
+          <!-- BODY -->
+          <div class="tbl-body" id="tbody">
+
+            <div class="data-row re light">
+              <div class="td light"><div class="prod-icon" style="background:#65abde"><i class="ti ti-droplet" aria-hidden="true"></i></div><span class="prod-name">Limpiador multiusos Pro</span></div>
+              <div class="td light"><span class="folio-tag light" id="ft1">#V-0041</span></div>
+              <div class="td right light">$89.00</div>
+              <div class="td center light"><span class="cant-badge light" id="cb1">3</span></div>
+              <div class="td right light">$267.00</div>
+              <div class="td muted light center">12 jun 2026</div>
+              <div class="td action-cell">
+                <span class="status-pill s-done light" id="sp1">✓ Completado</span>
+                <div class="act-btn view light" id="ab1v"><i class="ti ti-eye" aria-hidden="true"></i></div>
+              </div>
+            </div>
+
+            <div class="data-row ro light">
+              <div class="td light"><div class="prod-icon" style="background:#2e9e8a"><i class="ti ti-sparkles" aria-hidden="true"></i></div><span class="prod-name">Desinfectante bactericida</span></div>
+              <div class="td light"><span class="folio-tag light" id="ft2">#V-0042</span></div>
+              <div class="td right light">$145.50</div>
+              <div class="td center light"><span class="cant-badge light" id="cb2">2</span></div>
+              <div class="td right light">$291.00</div>
+              <div class="td muted light center">14 jun 2026</div>
+              <div class="td action-cell">
+                <span class="status-pill s-done light" id="sp2">✓ Completado</span>
+                <div class="act-btn view light" id="ab2v"><i class="ti ti-eye" aria-hidden="true"></i></div>
+              </div>
+            </div>
+
+            <div class="data-row re light">
+              <div class="td light"><div class="prod-icon" style="background:#294e69"><i class="ti ti-bottle" aria-hidden="true"></i></div><span class="prod-name">Jabón industrial granel</span></div>
+              <div class="td light"><span class="folio-tag light" id="ft3">#V-0043</span></div>
+              <div class="td right light">$62.00</div>
+              <div class="td center light"><span class="cant-badge light" id="cb3">5</span></div>
+              <div class="td right light">$310.00</div>
+              <div class="td muted light center">17 jun 2026</div>
+              <div class="td action-cell">
+                <span class="status-pill s-pend light" id="sp3">⏳ Pendiente</span>
+                <div class="act-btn view light" id="ab3v"><i class="ti ti-eye" aria-hidden="true"></i></div>
+              </div>
+            </div>
+
+            <div class="data-row ro light">
+              <div class="td light"><div class="prod-icon" style="background:#4a87b4"><i class="ti ti-wind" aria-hidden="true"></i></div><span class="prod-name">Aromatizante cítrico</span></div>
+              <div class="td light"><span class="folio-tag light" id="ft4">#V-0044</span></div>
+              <div class="td right light">$55.00</div>
+              <div class="td center light"><span class="cant-badge light" id="cb4">1</span></div>
+              <div class="td right light">$55.00</div>
+              <div class="td muted light center">19 jun 2026</div>
+              <div class="td action-cell">
+                <span class="status-pill s-cancel light" id="sp4">✕ Cancelado</span>
+                <div class="act-btn del light" id="ab4d"><i class="ti ti-trash" aria-hidden="true"></i></div>
+              </div>
+            </div>
+
+            <div class="data-row re light">
+              <div class="td light"><div class="prod-icon" style="background:#adcbe3"><i class="ti ti-wiper" aria-hidden="true"></i></div><span class="prod-name">Escoba industrial fibra</span></div>
+              <div class="td light"><span class="folio-tag light" id="ft5">#V-0045</span></div>
+              <div class="td right light">$210.00</div>
+              <div class="td center light"><span class="cant-badge light" id="cb5">2</span></div>
+              <div class="td right light">$420.00</div>
+              <div class="td muted light center">22 jun 2026</div>
+              <div class="td action-cell">
+                <span class="status-pill s-done light" id="sp5">✓ Completado</span>
+                <div class="act-btn view light" id="ab5v"><i class="ti ti-eye" aria-hidden="true"></i></div>
+              </div>
+            </div>
+
+            <div class="data-row ro light">
+              <div class="td light"><div class="prod-icon" style="background:#65abde"><i class="ti ti-droplet-half" aria-hidden="true"></i></div><span class="prod-name">Quitagrasa concentrado</span></div>
+              <div class="td light"><span class="folio-tag light" id="ft6">#V-0046</span></div>
+              <div class="td right light">$118.00</div>
+              <div class="td center light"><span class="cant-badge light" id="cb6">4</span></div>
+              <div class="td right light">$472.00</div>
+              <div class="td muted light center">24 jun 2026</div>
+              <div class="td action-cell">
+                <span class="status-pill s-pend light" id="sp6">⏳ Pendiente</span>
+                <div class="act-btn view light" id="ab6v"><i class="ti ti-eye" aria-hidden="true"></i></div>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- STATS FOOTER -->
+          <div class="stats-footer light" id="sfooter">
+            <div class="sf-group">
+              <div class="sf-item light"><i class="ti ti-receipt" aria-hidden="true"></i>Ventas totales: <span class="sf-val light">6 registros</span></div>
+              <div class="sf-item light"><i class="ti ti-circle-check" aria-hidden="true"></i>Completadas: <span class="sf-val light">3</span></div>
+              <div class="sf-item light"><i class="ti ti-clock" aria-hidden="true"></i>Pendientes: <span class="sf-val light">2</span></div>
+              <div class="sf-item light"><i class="ti ti-circle-x" aria-hidden="true"></i>Canceladas: <span class="sf-val light">1</span></div>
+            </div>
+            <div class="sf-item light"><i class="ti ti-coin" aria-hidden="true"></i>Total período: <span class="sf-val light">$1,815.00 MXN</span></div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- BOTTOM NAV -->
+      <div class="bottom-nav light" id="bnav">
+        <div class="tab-item inactive light" id="t1"><i class="ti ti-layout-grid" aria-hidden="true"></i><span>Inicio</span></div>
+        <div class="tab-item inactive light" id="t2"><i class="ti ti-package" aria-hidden="true"></i><span>Inventario</span></div>
+        <div class="tab-item inactive light" id="t3"><i class="ti ti-chart-line" aria-hidden="true"></i><span>Ventas</span></div>
+        <div class="tab-item inactive light" id="t4"><i class="ti ti-truck-delivery" aria-hidden="true"></i><span>Proveedores</span></div>
+        <div class="tab-item active light" id="t5">
+          <div class="tab-indicator light" id="ti5"></div>
+          <i class="ti ti-receipt" aria-hidden="true"></i>
+          <span>Reg. Venta</span>
+        </div>
+        <div class="tab-item inactive light" id="t6"><i class="ti ti-settings" aria-hidden="true"></i><span>Config</span></div>
+      </div>
+
+      <div class="home-indicator">
+        <div class="hi-bar light" id="hi"></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+var dark = false;
+var ids = [
+  'screen','sb','th','bchip','bdot','btxt','ptitle',
+  'ib1','ib2','abtn','tb','sbar','dchip',
+  'fp1','fp2','fp3','fp4',
+  'tcard','thead',
+  'ft1','ft2','ft3','ft4','ft5','ft6',
+  'cb1','cb2','cb3','cb4','cb5','cb6',
+  'sp1','sp2','sp3','sp4','sp5','sp6',
+  'ab1v','ab2v','ab3v','ab4d','ab5v','ab6v',
+  'sfooter',
+  'bnav','t1','t2','t3','t4','t5','t6','ti5','hi'
+];
+function toggleMode() {
+  dark = !dark;
+  var m = dark ? 'dark' : 'light', o = dark ? 'light' : 'dark';
+  ids.forEach(function(id){ var el=document.getElementById(id); if(el){el.classList.remove(o);el.classList.add(m);} });
+  document.querySelectorAll('.th,.td,.data-row,.sf-item,.sf-val').forEach(function(el){el.classList.remove(o);el.classList.add(m);});
+  document.getElementById('pill').classList.toggle('dark', dark);
+  document.getElementById('mode-label').textContent = dark ? 'Modo oscuro' : 'Modo claro';
+}
+</script>
