@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import '../alertas/alertas.dart'; 
 import '../ventas/ventas.dart';
-// import '../inventario/inventario.dart'; // Cuando la tengas lista
-// import '../proveedores/proveedores.dart'; // Cuando la tengas lista
+import '../configuracion/configuracion.dart';
+import '../registroVentas/registroVentas.dart';
+import '../inventario/inventario.dart';
+import '../proveedores/proveedores.dart'; 
 
 /// Modelo de datos interno para cada módulo/tarjeta del Dashboard
 class DashboardCardData {
@@ -72,7 +74,7 @@ class _CleanStockHomeScreenState extends State<CleanStockHomeScreen> {
       subIcons: [Icons.storefront_rounded, Icons.badge_outlined, Icons.location_on_outlined],
     ),
     const DashboardCardData(
-      id: 'registro_venta',
+      id: 'registroVentas',
       title: 'Registro de venta',
       subtitle: 'Nueva transacción',
       mainIcon: Icons.receipt_long_outlined,
@@ -166,23 +168,10 @@ class _CleanStockHomeScreenState extends State<CleanStockHomeScreen> {
   Widget _buildMainContent(List<DashboardCardData> filteredCards, {required bool isTablet}) {
     switch (_activeNavIndex) {
       case 0: return _buildGridCards(filteredCards, isTablet: isTablet);
-      case 1: return _buildAlertsView();
-      case 2: return _buildConfigView();
+      case 1: return const AlertasScreen();;
+      case 2: return const ConfiguracionScreen();
       default: return _buildGridCards(filteredCards, isTablet: isTablet);
     }
-  }
-
-  Widget _buildAlertsView() {
-    return const Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.notifications_active_outlined, size: 64, color: primaryColor),
-          SizedBox(height: 12),
-          Text('No hay alertas pendientes', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Color(0xFF64748B))),
-        ],
-      ),
-    );
   }
 
   Widget _buildConfigView() {
@@ -466,22 +455,17 @@ void _onCardPressed(BuildContext context, DashboardCardData card) {
     // Evaluamos el 'id' de la tarjeta que se presionó
     switch (card.id) {
       case 'ventas':
-        // Enlazamos a la pantalla de Ventas (Punto de Venta) que maquetamos
         pantallaDestino = const VentasScreen();
-        break;
-      
-      // Aquí irás agregando las demás pantallas conforme las vayas creando
-      /*
+        break;      
       case 'inventario':
         pantallaDestino = const InventarioScreen();
+        break;
+      case 'registroVentas':
+        pantallaDestino = const RegistroVentasScreen();
         break;
       case 'proveedores':
         pantallaDestino = const ProveedoresScreen();
         break;
-      case 'registro_ventas':
-        pantallaDestino = const HistorialVentasScreen();
-        break;
-      */
       
       default:
         // Si la pantalla aún no está creada, mostramos un mensaje temporal
