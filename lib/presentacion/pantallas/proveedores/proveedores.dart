@@ -1,4 +1,35 @@
+import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:share_plus/share_plus.dart';
+import 'agregarProveedor.dart';
+
+// NOTA: agrega esta dependencia en tu pubspec.yaml si no la tienes:
+//   share_plus: ^7.2.0
+// (ya no se necesita path_provider: la exportación se hace en memoria,
+//  compatible con Web, macOS, iOS y Android sin distinción)
+
+/// ---------------------------------------------------------------------
+/// ESQUEMA SUPABASE (según tu diagrama):
+///
+/// create table categorias (
+///   id serial primary key,
+///   nombre varchar(100) not null
+/// );
+///
+/// create table proveedores (
+///   id serial primary key,
+///   nombre varchar(150) not null,
+///   contacto varchar(150),
+///   telefono varchar(20),
+///   estado varchar(50) default 'Activo',
+///   categoria_id int references categorias(id),
+///   fecha_registro timestamp default now()
+/// );
+///
+/// -- (Opcional) Activa RLS y agrega políticas según tu caso de uso.
+/// ---------------------------------------------------------------------
 
 class ProveedoresScreen extends StatefulWidget {
   const ProveedoresScreen({super.key});
@@ -8,6 +39,8 @@ class ProveedoresScreen extends StatefulWidget {
 }
 
 class _ProveedoresScreenState extends State<ProveedoresScreen> {
+  final _supabase = Supabase.instance.client;
+
   // --- PALETA DE COLORES ---
   final Color bgLight = const Color(0xFFE8EFF7);
   final Color primaryDark = const Color(0xFF294E69);
@@ -16,10 +49,197 @@ class _ProveedoresScreenState extends State<ProveedoresScreen> {
   final Color textMuted = const Color(0xFF9AB4C8);
   final Color toolbarBg = const Color(0xFFF0F6FB);
 
-  int _filtroActivo = 0; // 0: Todos, 1: Activos, 2: Limpieza, 3: Comida, 4: Dulces
+  dynamic _filtroSeleccionado = 'todos'; // 'todos' | 'activos' | <int categoria_id>
+  final TextEditingController _searchController = TextEditingController();
+  String _busqueda = '';
 
-  // --- DATOS (Lista vacía esperando a Supabase) ---
-  List<Map<String, dynamic>> _categorias = [];
+  // --- DATOS ---
+  List<Map<String, dynamic>> _proveedoresRaw = []; // Lista plana traída de Supabase (con join a categorias)
+  List<Map<String, dynamic>> _categoriasCatalogo = []; // Catálogo de la tabla 'categorias'
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _cargarDatos();
+    _searchController.addListener(() {
+      setState(() => _busqueda = _searchController.text);
+    });
+  }
+
+  Future<void> _cargarDatos() async {
+    await Future.wait([_cargarCategorias(), _cargarProveedores()]);
+  }
+
+  Future<void> _cargarCategorias() async {
+    try {
+      final data = await _supabase.from('categorias').select('id, nombre').order('nombre');
+      setState(() => _categoriasCatalogo = List<Map<String, dynamic>>.from(data));
+    } catch (e) {
+      _mostrarSnack('Error al cargar categorías: $e', Colors.red);
+    }
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  // --- CARGA DESDE SUPABASE ---
+  // categorias(nombre) trae el nombre de la categoría relacionada vía categoria_id (FK)
+  Future<void> _cargarProveedores() async {
+    setState(() => _isLoading = true);
+    try {
+      final data = await _supabase
+          .from('proveedores')
+          .select('id, nombre, contacto, telefono, estado, categoria_id, fecha_registro, categorias(id, nombre)')
+          .order('nombre', ascending: true);
+
+      setState(() {
+        _proveedoresRaw = List<Map<String, dynamic>>.from(data);
+        _isLoading = false;
+      });
+    } catch (e) {
+      _mostrarSnack('Error al cargar proveedores: $e', Colors.red);
+      setState(() => _isLoading = false);
+    }
+  }
+
+  // (La inserción de nuevos proveedores ahora vive en AgregarProveedorScreen)
+
+  // --- ACTUALIZAR ESTADO ---
+  Future<void> _actualizarEstado(int id, String nuevoEstado) async {
+    try {
+      await _supabase.from('proveedores').update({'estado': nuevoEstado}).eq('id', id);
+      _mostrarSnack('Estado actualizado.', const Color(0xFF2E9E8A));
+      await _cargarProveedores();
+    } catch (e) {
+      _mostrarSnack('Error al actualizar estado: $e', Colors.red);
+    }
+  }
+
+  // --- ELIMINAR PROVEEDOR ---
+  Future<void> _eliminarProveedor(int id, String nombre) async {
+    try {
+      await _supabase.from('proveedores').delete().eq('id', id);
+      _mostrarSnack('Proveedor "$nombre" eliminado.', Colors.orange);
+      await _cargarProveedores();
+    } catch (e) {
+      _mostrarSnack('Error al eliminar proveedor: $e', Colors.red);
+    }
+  }
+
+  void _mostrarSnack(String msg, Color color) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(msg), backgroundColor: color, behavior: SnackBarBehavior.floating),
+    );
+  }
+
+  // --- EXPORTAR PROVEEDORES A CSV ---
+  // Exporta la lista actualmente visible (respeta el buscador y el filtro activo).
+  Future<void> _exportarProveedoresCSV() async {
+    final categorias = _categoriasFiltradas;
+    final List<Map<String, dynamic>> proveedoresAExportar = [
+      for (var cat in categorias) ...List<Map<String, dynamic>>.from(cat['proveedores'])
+    ];
+
+    if (proveedoresAExportar.isEmpty) {
+      _mostrarSnack('No hay proveedores para exportar con el filtro actual.', Colors.orange);
+      return;
+    }
+
+    try {
+      final buffer = StringBuffer();
+      buffer.writeln('Nombre,Categoria,Contacto,Telefono,Estado,Fecha de registro');
+      for (var p in proveedoresAExportar) {
+        final fecha = p['fecha_registro'] != null ? p['fecha_registro'].toString().substring(0, 10) : '';
+        buffer.writeln([
+          _csvEscape(p['nombre']),
+          _csvEscape(_nombreCategoria(p)),
+          _csvEscape(p['contacto']),
+          _csvEscape(p['telefono']),
+          _csvEscape(p['estado']),
+          _csvEscape(fecha),
+        ].join(','));
+      }
+
+      final nombreArchivo = 'proveedores_${DateTime.now().millisecondsSinceEpoch}.csv';
+      final bytes = Uint8List.fromList(utf8.encode(buffer.toString()));
+      final archivo = XFile.fromData(bytes, name: nombreArchivo, mimeType: 'text/csv');
+
+      await Share.shareXFiles([archivo], text: 'Listado de proveedores - CleanStock');
+    } catch (e) {
+      _mostrarSnack('Error al exportar proveedores: $e', Colors.red);
+    }
+  }
+
+  String _csvEscape(dynamic valor) {
+    final texto = (valor ?? '').toString().replaceAll('"', '""');
+    return '"$texto"';
+  }
+
+  // --- HELPERS DE PRESENTACIÓN ---
+  String _nombreCategoria(Map<String, dynamic> prov) {
+    final cat = prov['categorias'];
+    if (cat is Map && cat['nombre'] != null) return cat['nombre'].toString();
+    return 'Sin categoría';
+  }
+
+  String _emojiPorCategoria(String categoria) {
+    switch (categoria.toLowerCase()) {
+      case 'limpieza':
+        return '🧼';
+      case 'comida':
+        return '🍎';
+      case 'dulces':
+        return '🍬';
+      default:
+        return '📦';
+    }
+  }
+
+  Color _colorPorEstado(String estado) {
+    return estado == 'Activo' ? const Color(0xFF2E9E8A) : const Color(0xFFE0A72E);
+  }
+
+  // --- FILTRADO + AGRUPADO ---
+  List<Map<String, dynamic>> get _categoriasFiltradas {
+    List<Map<String, dynamic>> filtrados = _proveedoresRaw.where((p) {
+      final nombreCat = _nombreCategoria(p);
+      final coincideBusqueda = _busqueda.isEmpty ||
+          (p['nombre'] ?? '').toString().toLowerCase().contains(_busqueda.toLowerCase()) ||
+          nombreCat.toLowerCase().contains(_busqueda.toLowerCase());
+
+      bool coincideFiltro;
+      if (_filtroSeleccionado == 'todos') {
+        coincideFiltro = true;
+      } else if (_filtroSeleccionado == 'activos') {
+        coincideFiltro = p['estado'] == 'Activo';
+      } else if (_filtroSeleccionado is int) {
+        coincideFiltro = p['categoria_id'] == _filtroSeleccionado;
+      } else {
+        coincideFiltro = true;
+      }
+      return coincideBusqueda && coincideFiltro;
+    }).toList();
+
+    // Agrupar por categoría
+    Map<String, List<Map<String, dynamic>>> agrupado = {};
+    for (var prov in filtrados) {
+      final cat = _nombreCategoria(prov);
+      agrupado.putIfAbsent(cat, () => []).add(prov);
+    }
+
+    return agrupado.entries.map((e) {
+      return {
+        'emoji': _emojiPorCategoria(e.key),
+        'nombre': e.key,
+        'proveedores': e.value,
+      };
+    }).toList();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -60,13 +280,27 @@ class _ProveedoresScreenState extends State<ProveedoresScreen> {
         ],
       ),
       actions: [
-        IconButton(icon: Icon(Icons.download, color: primaryLight), onPressed: () {}),
-        IconButton(icon: Icon(Icons.tune, color: primaryLight), onPressed: () {}),
+        IconButton(
+          icon: Icon(Icons.refresh, color: primaryLight),
+          onPressed: _cargarDatos,
+          tooltip: 'Recargar',
+        ),
+        IconButton(
+          icon: Icon(Icons.download, color: primaryLight),
+          onPressed: _exportarProveedoresCSV,
+          tooltip: 'Descargar CSV',
+        ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
           child: ElevatedButton.icon(
-            onPressed: () {
-              // Aquí irá tu lógica para abrir el formulario y guardar en Supabase
+            onPressed: () async {
+              final resultado = await Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const AgregarProveedorScreen()),
+              );
+              if (resultado == true) {
+                _cargarDatos();
+              }
             },
             icon: const Icon(Icons.add, size: 16, color: Colors.white),
             label: const Text('Agregar proveedor', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
@@ -88,35 +322,44 @@ class _ProveedoresScreenState extends State<ProveedoresScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
       child: Row(
         children: [
-          // Buscador
+          // Buscador (conectado a _busqueda)
           Container(
             width: 260,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
             decoration: BoxDecoration(color: Colors.white, border: Border.all(color: borderLight, width: 0.5), borderRadius: BorderRadius.circular(10)),
             child: Row(
               children: [
                 Icon(Icons.search, size: 16, color: textMuted),
                 const SizedBox(width: 8),
-                Text('Buscar proveedor o categoría...', style: TextStyle(color: textMuted, fontSize: 12)),
+                Expanded(
+                  child: TextField(
+                    controller: _searchController,
+                    style: TextStyle(color: primaryDark, fontSize: 12),
+                    decoration: InputDecoration(
+                      isDense: true,
+                      border: InputBorder.none,
+                      hintText: 'Buscar proveedor o categoría...',
+                      hintStyle: TextStyle(color: textMuted, fontSize: 12),
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
           const SizedBox(width: 16),
-          // Filtros
+          // Filtros (dinámicos: Todos, Activos + una pill por cada categoría real)
           Expanded(
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: Row(
                 children: [
-                  _buildFiltroPill('Todos', 0),
+                  _buildFiltroPill('Todos', 'todos'),
                   const SizedBox(width: 8),
-                  _buildFiltroPill('Activos', 1),
-                  const SizedBox(width: 8),
-                  _buildFiltroPill('Limpieza', 2),
-                  const SizedBox(width: 8),
-                  _buildFiltroPill('Comida', 3),
-                  const SizedBox(width: 8),
-                  _buildFiltroPill('Dulces', 4),
+                  _buildFiltroPill('Activos', 'activos'),
+                  for (var cat in _categoriasCatalogo) ...[
+                    const SizedBox(width: 8),
+                    _buildFiltroPill(cat['nombre'].toString(), cat['id'] as int),
+                  ],
                 ],
               ),
             ),
@@ -126,10 +369,10 @@ class _ProveedoresScreenState extends State<ProveedoresScreen> {
     );
   }
 
-  Widget _buildFiltroPill(String texto, int index) {
-    bool activo = _filtroActivo == index;
+  Widget _buildFiltroPill(String texto, dynamic valor) {
+    bool activo = _filtroSeleccionado == valor;
     return InkWell(
-      onTap: () => setState(() => _filtroActivo = index),
+      onTap: () => setState(() => _filtroSeleccionado = valor),
       borderRadius: BorderRadius.circular(8),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -145,6 +388,8 @@ class _ProveedoresScreenState extends State<ProveedoresScreen> {
 
   // --- TABLA DE PROVEEDORES ---
   Widget _buildTablaProveedores() {
+    final categorias = _categoriasFiltradas;
+
     return Container(
       margin: const EdgeInsets.fromLTRB(20, 16, 20, 16),
       decoration: BoxDecoration(
@@ -168,18 +413,20 @@ class _ProveedoresScreenState extends State<ProveedoresScreen> {
               ],
             ),
           ),
-          
-          // Cuerpo de la Tabla (Validando si está vacía)
+
+          // Cuerpo de la Tabla
           Expanded(
-            child: _categorias.isEmpty 
-                ? _buildEstadoVacio() 
-                : ListView(
-                    children: _construirFilasDinamicas(),
-                  ),
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : categorias.isEmpty
+                    ? _buildEstadoVacio()
+                    : ListView(
+                        children: _construirFilasDinamicas(categorias),
+                      ),
           ),
-          
+
           // Footer Estadístico
-          _buildFooterEstadistico(),
+          _buildFooterEstadistico(categorias),
         ],
       ),
     );
@@ -191,6 +438,7 @@ class _ProveedoresScreenState extends State<ProveedoresScreen> {
 
   // --- DISEÑO DE ESTADO VACÍO ---
   Widget _buildEstadoVacio() {
+    final hayFiltroOBusqueda = _filtroSeleccionado != 'todos' || _busqueda.isNotEmpty;
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -198,12 +446,12 @@ class _ProveedoresScreenState extends State<ProveedoresScreen> {
           Icon(Icons.inventory_2_outlined, size: 64, color: borderLight.withOpacity(0.5)),
           const SizedBox(height: 16),
           Text(
-            'Aún no hay proveedores registrados',
+            hayFiltroOBusqueda ? 'No hay proveedores que coincidan' : 'Aún no hay proveedores registrados',
             style: TextStyle(color: primaryDark, fontSize: 16, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 8),
           Text(
-            'Conecta tu base de datos o agrega uno nuevo.',
+            hayFiltroOBusqueda ? 'Prueba con otro filtro o término de búsqueda.' : 'Agrega uno nuevo con el botón de arriba.',
             style: TextStyle(color: textMuted, fontSize: 13),
           ),
         ],
@@ -211,9 +459,9 @@ class _ProveedoresScreenState extends State<ProveedoresScreen> {
     );
   }
 
-  List<Widget> _construirFilasDinamicas() {
+  List<Widget> _construirFilasDinamicas(List<Map<String, dynamic>> categorias) {
     List<Widget> filas = [];
-    for (var cat in _categorias) {
+    for (var cat in categorias) {
       filas.add(_buildFilaCategoria(cat['emoji'], cat['nombre'], cat['proveedores'].length));
       List<dynamic> provs = cat['proveedores'];
       for (int i = 0; i < provs.length; i++) {
@@ -245,7 +493,8 @@ class _ProveedoresScreenState extends State<ProveedoresScreen> {
   }
 
   Widget _buildFilaProveedor(Map<String, dynamic> prov, bool isEven) {
-    bool isReview = prov['estado'] == 'Revisión';
+    bool isReview = prov['estado'] != 'Activo';
+    final colorPunto = _colorPorEstado(prov['estado'] ?? 'Activo');
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -261,15 +510,15 @@ class _ProveedoresScreenState extends State<ProveedoresScreen> {
               children: [
                 Container(
                   width: 10, height: 10,
-                  decoration: BoxDecoration(color: prov['colorPunto'], shape: BoxShape.circle),
+                  decoration: BoxDecoration(color: colorPunto, shape: BoxShape.circle),
                 ),
                 const SizedBox(width: 10),
-                Expanded(child: Text(prov['nombre'], style: TextStyle(color: primaryDark, fontSize: 12, fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis)),
+                Expanded(child: Text(prov['nombre'] ?? '', style: TextStyle(color: primaryDark, fontSize: 12, fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis)),
               ],
             ),
           ),
-          Expanded(flex: 14, child: Text(prov['contacto'], style: TextStyle(color: textMuted, fontSize: 11))),
-          Expanded(flex: 14, child: Text(prov['telefono'], style: TextStyle(color: textMuted, fontSize: 11))),
+          Expanded(flex: 14, child: Text(prov['contacto'] ?? '-', style: TextStyle(color: textMuted, fontSize: 11))),
+          Expanded(flex: 14, child: Text(prov['telefono'] ?? '-', style: TextStyle(color: textMuted, fontSize: 11))),
           Expanded(
             flex: 10,
             child: Center(
@@ -280,7 +529,7 @@ class _ProveedoresScreenState extends State<ProveedoresScreen> {
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(
-                  prov['estado'],
+                  prov['estado'] ?? 'Activo',
                   style: TextStyle(color: isReview ? const Color(0xFF854F0B) : const Color(0xFF0F6E56), fontSize: 10, fontWeight: FontWeight.bold),
                 ),
               ),
@@ -289,10 +538,14 @@ class _ProveedoresScreenState extends State<ProveedoresScreen> {
           SizedBox(
             width: 80,
             child: Center(
-              child: Container(
-                width: 28, height: 28,
-                decoration: BoxDecoration(color: bgLight, borderRadius: BorderRadius.circular(8)),
-                child: Icon(Icons.chevron_right, size: 16, color: primaryLight),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(8),
+                onTap: () => _abrirDetalleProveedor(prov),
+                child: Container(
+                  width: 28, height: 28,
+                  decoration: BoxDecoration(color: bgLight, borderRadius: BorderRadius.circular(8)),
+                  child: Icon(Icons.chevron_right, size: 16, color: primaryLight),
+                ),
               ),
             ),
           ),
@@ -302,9 +555,9 @@ class _ProveedoresScreenState extends State<ProveedoresScreen> {
   }
 
   // --- FOOTER ESTADÍSTICO ---
-  Widget _buildFooterEstadistico() {
+  Widget _buildFooterEstadistico(List<Map<String, dynamic>> categorias) {
     int totalProveedores = 0;
-    for (var cat in _categorias) {
+    for (var cat in categorias) {
       totalProveedores += (cat['proveedores'] as List).length;
     }
 
@@ -319,7 +572,7 @@ class _ProveedoresScreenState extends State<ProveedoresScreen> {
               Icon(Icons.list_alt, size: 14, color: borderLight),
               const SizedBox(width: 6),
               Text('Total · ', style: TextStyle(color: borderLight, fontSize: 11, fontWeight: FontWeight.w600)),
-              Text('${_categorias.length} categorías', style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+              Text('${categorias.length} categorías', style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
             ],
           ),
           Row(
@@ -328,6 +581,97 @@ class _ProveedoresScreenState extends State<ProveedoresScreen> {
               const SizedBox(width: 6),
               Icon(Icons.local_shipping, size: 14, color: borderLight),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ---------------------------------------------------------------------
+  // DETALLE / EDITAR ESTADO / ELIMINAR
+  // ---------------------------------------------------------------------
+  void _abrirDetalleProveedor(Map<String, dynamic> prov) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          title: Text(prov['nombre'] ?? '', style: TextStyle(color: primaryDark, fontWeight: FontWeight.bold)),
+          content: SizedBox(
+            width: 340,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _filaDetalle('Categoría', _nombreCategoria(prov)),
+                _filaDetalle('Contacto', prov['contacto'] ?? '-'),
+                _filaDetalle('Teléfono', prov['telefono'] ?? '-'),
+                _filaDetalle('Estado', prov['estado'] ?? '-'),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+                _confirmarEliminar(prov);
+              },
+              child: const Text('Eliminar', style: TextStyle(color: Colors.red)),
+            ),
+            TextButton(
+              onPressed: () {
+                final nuevoEstado = prov['estado'] == 'Activo' ? 'Revisión' : 'Activo';
+                Navigator.pop(context);
+                _actualizarEstado(prov['id'], nuevoEstado);
+              },
+              child: Text(
+                prov['estado'] == 'Activo' ? 'Marcar en Revisión' : 'Marcar como Activo',
+                style: TextStyle(color: primaryLight, fontWeight: FontWeight.bold),
+              ),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: primaryDark),
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cerrar', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _filaDetalle(String label, String valor) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(width: 90, child: Text(label, style: TextStyle(color: textMuted, fontSize: 12, fontWeight: FontWeight.bold))),
+          Expanded(child: Text(valor, style: TextStyle(color: primaryDark, fontSize: 13))),
+        ],
+      ),
+    );
+  }
+
+  void _confirmarEliminar(Map<String, dynamic> prov) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        title: const Text('¿Eliminar proveedor?'),
+        content: Text('Esta acción eliminará a "${prov['nombre']}" permanentemente.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Cancelar', style: TextStyle(color: textMuted)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () {
+              Navigator.pop(context);
+              _eliminarProveedor(prov['id'], prov['nombre'] ?? '');
+            },
+            child: const Text('Eliminar', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
