@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CleanStock - Portal de Empleado</title>
+    <!-- Google Fonts para mantener la tipografía limpia -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Iconos de Google Material -->
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined" rel="stylesheet">
+    
+    <!-- SDK Oficial de Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+    <style>
+        /* --- VARIABLES DE DISEÑO (Paleta CleanStock) --- */
+        :root {
+            --bg-light: #E8EFF7;
+            --primary-dark: #294E69;
+            --primary-light: #65ABDE;
+            --border-light: #ADCBE3;
+            --text-muted: #9AB4C8;
+            --card-bg: #FFFFFF;
+            --input-bg: #F8FBFD;
+            --success: #2E9E8A;
+            --danger: #FF5252;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-light);
+            color: var(--primary-dark);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* --- NAVBAR --- */
+        .navbar {
+            background-color: var(--card-bg);
+            height: 56px;
+            display: flex;
+            align-items: center;
+            padding: 0 24px;
+            border-bottom: 0.5px solid var(--border-light);
+        }
+
+        .brand-container {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .brand-icon {
+            background-color: var(--primary-light);
+            color: white;
+            border-radius: 6px;
+            padding: 4px;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .brand-logo {
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 1.2px;
+        }
+
+        .separator {
+            color: var(--border-light);
+            margin: 0 8px;
+        }
+
+        .page-title {
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        /* --- CONTENEDOR PRINCIPAL --- */
+        .main-container {
+            max-width: 650px;
+            width: 100%;
+            margin: 40px auto;
+            padding: 0 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        /* --- TARJETAS --- */
+        .card {
+            background-color: var(--card-bg);
+            border: 0.5px solid var(--border-light);
+            border-radius: 14px;
+            padding: 24px;
+        }
+
+        /* --- TARJETA EMPLEADO --- */
+        .profile-card {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .avatar-container {
+            background-color: rgba(101, 171, 222, 0.15);
+            border-radius: 50%;
+            width: 72px;
+            height: 72px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .avatar-icon {
+            font-size: 40px;
+            color: var(--primary-light);
+        }
+
+        .employee-info {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .employee-name {
+            font-size: 18px;
+            font-weight: 700;
+        }
+
+        .employee-email {
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+
+        .id-badge-container {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 8px;
+            font-size: 11px;
+            font-weight: 700;
+        }
+
+        .id-badge {
+            background-color: var(--primary-dark);
+            color: white;
+            padding: 3px 8px;
+            border-radius: 6px;
+        }
+
+        /* --- FORMULARIO --- */
+        .form-header {
+            margin-bottom: 20px;
+        }
+
+        .form-subtitle {
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.8px;
+            margin-bottom: 6px;
+        }
+
+        .form-desc {
+            font-size: 12px;
+            color: var(--text-muted);
+            line-height: 1.4;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .form-label {
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .input-wrapper {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        .form-input {
+            width: 100%;
+            background-color: var(--input-bg);
+            border: 0.5px solid var(--border-light);
+            border-radius: 8px;
+            padding: 12px 40px 12px 12px;
+            font-size: 13px;
+            color: var(--primary-dark);
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .form-input:focus {
+            border-color: var(--primary-light);
+        }
+
+        .toggle-password {
+            position: absolute;
+            right: 12px;
+            cursor: pointer;
+            color: var(--text-muted);
+            font-size: 18px;
+            user-select: none;
+        }
+
+        /* --- BOTÓN --- */
+        .btn {
+            width: 100%;
+            height: 40px;
+            background-color: var(--primary-light);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-weight: 700;
+            font-size: 13px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: background-color 0.2s;
+        }
+
+        .btn:hover {
+            background-color: #5193C5;
+        }
+
+        .btn:disabled {
+            background-color: var(--border-light);
+            cursor: not-allowed;
+        }
+
+        /* --- NOTIFICACIONES --- */
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            padding: 12px 24px;
+            border-radius: 8px;
+            color: white;
+            font-size: 13px;
+            font-weight: 500;
+            opacity: 0;
+            transition: transform 0.3s, opacity 0.3s;
+            z-index: 1000;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        .toast.show {
+            transform: translateX(-50%) translateY(0);
+            opacity: 1;
+        }
+
+        .spinner {
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top: 2px solid white;
+            width: 16px;
+            height: 16px;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- NAVBAR -->
+    <nav class="navbar">
+        <div class="brand-container">
+            <div class="brand-icon">
+                <span class="material-icons-outlined" style="font-size: 14px;">auto_awesome</span>
+            </div>
+            <span class="brand-logo">CLEANSTOCK</span>
+            <span class="separator">/</span>
+            <span class="page-title">Portal de Empleado</span>
+        </div>
+    </nav>
+
+    <!-- CONTENEDOR PRINCIPAL -->
+    <main class="main-container">
+        
+        <!-- SECCIÓN 1: DATOS DEL EMPLEADO -->
+        <section class="card profile-card">
+            <div class="avatar-container">
+                <span class="material-icons-outlined avatar-icon">badge</span>
+            </div>
+            <div class="employee-info">
+                <h2 class="employee-name" id="emp-name">Cargando empleado...</h2>
+                <span class="employee-email" id="emp-email">Inicia sesión para ver tu correo</span>
+                <div class="id-badge-container">
+                    <span>ID EMPLEADO:</span>
+                    <span class="id-badge" id="emp-id">EMP-TEMP</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- SECCIÓN 2: FORMULARIO -->
+        <section class="card">
+            <div class="form-header">
+                <h3 class="form-subtitle">SEGURIDAD Y ACCESO</h3>
+                <p class="form-desc">Actualiza tu contraseña periódicamente para mantener tu cuenta segura.</p>
+            </div>
+
+            <form id="password-form" onsubmit="actualizarContrasena(event)">
+                <div class="form-group">
+                    <label class="form-label" for="new-password">Nueva contraseña</label>
+                    <div class="input-wrapper">
+                        <input class="form-input" type="password" id="new-password" placeholder="Mínimo 6 caracteres" required minlength="6">
+                        <span class="material-icons-outlined toggle-password" onclick="togglePasswordVisibility('new-password', this)">visibility_off</span>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="confirm-password">Confirmar nueva contraseña</label>
+                    <div class="input-wrapper">
+                        <input class="form-input" type="password" id="confirm-password" placeholder="Repite la contraseña" required minlength="6">
+                        <span class="material-icons-outlined toggle-password" onclick="togglePasswordVisibility('confirm-password', this)">visibility_off</span>
+                    </div>
+                </div>
+
+                <button class="btn" type="submit" id="btn-submit">
+                    <span>Actualizar contraseña</span>
+                </button>
+            </form>
+        </section>
+    </main>
+
+    <!-- TOAST DE NOTIFICACIONES -->
+    <div id="toast" class="toast"></div>
+
+    <script>
+        // --- 1. CONFIGURACIÓN DE SUPABASE ---
+        // Reemplaza estos valores con las credenciales de tu proyecto de Supabase
+        const SUPABASE_URL = 'https://TU_PROYECTO.supabase.co';
+        const SUPABASE_ANON_KEY = 'TU_ANON_KEY';
+        
+        const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        // --- 2. CAPTURAR DATOS DESDE LA URL Y LA SESIÓN ---
+        window.addEventListener('DOMContentLoaded', async () => {
+            // Leer el ID de la URL (?id=EMP-XXXX)
+            const urlParams = new URLSearchParams(window.location.search);
+            const idDesdeUrl = urlParams.get('id');
+
+            if (idDesdeUrl) {
+                document.getElementById('emp-id').innerText = idDesdeUrl;
+            }
+
+            // Validar si hay un usuario logueado en Supabase
+            const { data: { user } } = await supabase.auth.getUser();
+
+            if (user) {
+                document.getElementById('emp-name').innerText = user.user_metadata.nombre || 'Empleado Activo';
+                document.getElementById('emp-email').innerText = user.email;
+                
+                // Si el ID no viene en la URL, intentar tomarlo de la metadata del auth
+                if (!idDesdeUrl && user.user_metadata.id_empleado) {
+                    document.getElementById('emp-id').innerText = user.user_metadata.id_empleado;
+                }
+            } else {
+                document.getElementById('emp-name').innerText = "Invitado / No logueado";
+            }
+        });
+
+        // --- 3. PROCESO DE ACTUALIZACIÓN DE CONTRASEÑA ---
+        async function actualizarContrasena(event) {
+            event.preventDefault();
+
+            const password = document.getElementById('new-password').value;
+            const confirmPassword = document.getElementById('confirm-password').value;
+            const btnSubmit = document.getElementById('btn-submit');
+
+            // Validar coincidencia
+            if (password !== confirmPassword) {
+                showToast('Las contraseñas no coinciden', 'var(--danger)');
+                return;
+            }
+
+            // Estado de carga (Loading)
+            btnSubmit.disabled = true;
+            btnSubmit.innerHTML = `<div class="spinner"></div> <span>Actualizando...</span>`;
+
+            try {
+                const { error } = await supabase.auth.updateUser({ password: password });
+
+                if (error) throw error;
+
+                showToast('Contraseña actualizada con éxito', 'var(--success)');
+                document.getElementById('password-form').reset();
+            } catch (error) {
+                showToast(`Error: ${error.message}`, 'var(--danger)');
+            } finally {
+                btnSubmit.disabled = false;
+                btnSubmit.innerHTML = '<span>Actualizar contraseña</span>';
+            }
+        }
+
+        // --- 4. MOSTRAR / OCULTAR CONTRASEÑA ---
+        function togglePasswordVisibility(inputId, iconElement) {
+            const input = document.getElementById(inputId);
+            if (input.type === 'password') {
+                input.type = 'text';
+                iconElement.innerText = 'visibility';
+            } else {
+                input.type = 'password';
+                iconElement.innerText = 'visibility_off';
+            }
+        }
+
+        // --- 5. TOAST PERSONALIZADO ---
+        function showToast(message, color) {
+            const toast = document.getElementById('toast');
+            toast.innerText = message;
+            toast.style.backgroundColor = color;
+            toast.classList.add('show');
+
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 4000);
+        }
+    </script>
+</body>
+</html>
