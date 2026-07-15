@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class RegistroVentasScreen extends StatefulWidget {
   const RegistroVentasScreen({super.key});
@@ -16,10 +17,231 @@ class _RegistroVentasScreenState extends State<RegistroVentasScreen> {
   final Color textMuted = const Color(0xFF9AB4C8);
   final Color toolbarBg = const Color(0xFFF0F6FB);
 
-  int _filtroActivo = 0; // 0: Todos, 1: Completados, 2: Pendientes, 3: Cancelados
+  final _supabase = Supabase.instance.client;
+  final _searchController = TextEditingController();
 
-  // --- DATOS (Lista vacía esperando a Supabase) ---
-  final List<Map<String, dynamic>> _registros = [];
+  int _filtroActivo = 0; // 0: Todos, 1: Completados, 2: Pendientes, 3: Cancelados
+  int _filtroTiempoActivo = 0; // 0: Todos, 1: Hoy, 2: Esta Semana, 3: Este Mes
+  String _busquedaQuery = '';
+  bool _isLoading = true;
+
+  // --- DATOS ---
+  List<Map<String, dynamic>> _ventasRaw = []; 
+  List<Map<String, dynamic>> _ventasFiltradas = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _cargarVentas();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  // ==========================================
+  //            OPERACIONES CRUD (BD)
+  // ==========================================
+
+  // [READ] Obtener ventas combinando Maestro-Detalle y Producto
+  Future<void> _cargarVentas() async {
+    setState(() => _isLoading = true);
+    try {
+      final response = await _supabase
+          .from('venta_detalles')
+          .select('''
+            id,
+            cantidad,
+            precio_unitario,
+            subtotal,
+            ventas (
+              id,
+              folio,
+              fecha_venta,
+              estado
+            ),
+            productos (
+              nombre
+            )
+          ''');
+
+      _ventasRaw = List<Map<String, dynamic>>.from(response);
+      _procesarYFiltrarVentas();
+    } catch (e) {
+      _mostrarSnack('Error al cargar ventas: $e', Colors.redAccent);
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  // [CREATE] Registrar una venta de prueba (Venta + Detalle)
+  Future<void> _crearVentaDePrueba() async {
+    setState(() => _isLoading = true);
+    try {
+      final prodResponse = await _supabase.from('productos').select().limit(1);
+      if (prodResponse.isEmpty) {
+        _mostrarSnack('Primero agrega productos en tu pantalla de Inventario', Colors.orange);
+        return;
+      }
+      final producto = prodResponse.first;
+
+      final nuevaVenta = await _supabase.from('ventas').insert({
+        'folio': 'F-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}',
+        'estado': 'Completado',
+        'total': (producto['precio'] as num).toDouble() * 2,
+      }).select().single();
+
+      await _supabase.from('venta_detalles').insert({
+        'venta_id': nuevaVenta['id'],
+        'producto_id': producto['id'],
+        'cantidad': 2,
+        'precio_unitario': (producto['precio'] as num).toDouble(),
+      });
+
+      _mostrarSnack('Venta de prueba registrada con éxito', const Color(0xFF2E9E8A));
+      _cargarVentas();
+    } catch (e) {
+      _mostrarSnack('Error al registrar venta: $e', Colors.redAccent);
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  // [UPDATE] Cambiar el estado de una venta (Completado / Pendiente / Cancelado)
+  Future<void> _cambiarEstadoVenta(int ventaId, String nuevoEstado) async {
+    try {
+      await _supabase
+          .from('ventas')
+          .update({'estado': nuevoEstado})
+          .eq('id', ventaId);
+
+      _mostrarSnack('Estado de la venta actualizado', const Color(0xFF2E9E8A));
+      _cargarVentas();
+    } catch (e) {
+      _mostrarSnack('Error al actualizar estado: $e', Colors.redAccent);
+    }
+  }
+
+  // [DELETE] Eliminar registro de venta
+  Future<void> _eliminarVenta(int ventaId, String folio) async {
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('¿Eliminar registro?'),
+        content: Text('¿Deseas eliminar permanentemente el registro del folio $folio?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Eliminar', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmar == true) {
+      try {
+        await _supabase.from('ventas').delete().eq('id', ventaId);
+        _mostrarSnack('Venta eliminada con éxito', const Color(0xFF2E9E8A));
+        _cargarVentas();
+      } catch (e) {
+        _mostrarSnack('Error al eliminar venta: $e', Colors.redAccent);
+      }
+    }
+  }
+
+  // ==========================================
+  //         PROCESAMIENTO Y FILTROS
+  // ==========================================
+
+  void _procesarYFiltrarVentas() {
+    List<Map<String, dynamic>> temp = [];
+    final DateTime ahora = DateTime.now();
+
+    for (var item in _ventasRaw) {
+      final venta = item['ventas'] as Map<String, dynamic>?;
+      final producto = item['productos'] as Map<String, dynamic>?;
+
+      if (venta == null || producto == null) continue;
+
+      String nomProd = producto['nombre'] ?? 'Desconocido';
+      String folio = venta['folio'] ?? 'S/F';
+      String estado = venta['estado'] ?? 'Pendiente';
+      
+      // --- CORRECCIÓN DE FECHA (CONVERSIÓN A HORA LOCAL) ---
+      String fechaRaw = venta['fecha_venta'] ?? '';
+      String fechaStr = 'S/F';
+      
+      if (fechaRaw.isNotEmpty) {
+        final DateTime fechaLocal = DateTime.parse(fechaRaw).toLocal();
+        fechaStr = fechaLocal.toString().substring(0, 10);
+      }
+
+      // --- FILTRO DE BÚSQUEDA ---
+      if (_busquedaQuery.isNotEmpty &&
+          !nomProd.toLowerCase().contains(_busquedaQuery.toLowerCase()) &&
+          !folio.toLowerCase().contains(_busquedaQuery.toLowerCase())) {
+        continue;
+      }
+
+      // --- FILTRO DE ESTADO ---
+      if (_filtroActivo == 1 && estado != 'Completado') continue;
+      if (_filtroActivo == 2 && estado != 'Pendiente') continue;
+      if (_filtroActivo == 3 && estado != 'Cancelado') continue;
+
+      // --- FILTRO DE TIEMPO (YA USA LA FECHA LOCAL CORRECTA) ---
+      if (fechaRaw.isNotEmpty) {
+        final DateTime fechaVenta = DateTime.parse(fechaRaw).toLocal();
+
+        if (_filtroTiempoActivo == 1) { // HOY
+          if (fechaVenta.year != ahora.year || 
+              fechaVenta.month != ahora.month || 
+              fechaVenta.day != ahora.day) {
+            continue;
+          }
+        } else if (_filtroTiempoActivo == 2) { // ESTA SEMANA (Últimos 7 días)
+          final diferenciaDias = ahora.difference(fechaVenta).inDays;
+          if (diferenciaDias < 0 || diferenciaDias > 7) {
+            continue;
+          }
+        } else if (_filtroTiempoActivo == 3) { // ESTE MES
+          if (fechaVenta.year != ahora.year || fechaVenta.month != ahora.month) {
+            continue;
+          }
+        }
+      } else if (_filtroTiempoActivo != 0) {
+        continue;
+      }
+
+      temp.add({
+        'id_detalle': item['id'],
+        'id_venta': venta['id'],
+        'producto': nomProd,
+        'folio': folio,
+        'precio': (item['precio_unitario'] as num).toDouble(),
+        'cantidad': item['cantidad'] as int,
+        'fecha': fechaStr,
+        'estado': estado,
+      });
+    }
+
+    setState(() {
+      _ventasFiltradas = temp;
+    });
+  }
+
+  void _mostrarSnack(String msg, Color color) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(msg), backgroundColor: color, behavior: SnackBarBehavior.floating),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -29,7 +251,11 @@ class _RegistroVentasScreenState extends State<RegistroVentasScreen> {
       body: Column(
         children: [
           _buildToolbar(),
-          Expanded(child: _buildTablaRegistros()),
+          Expanded(
+            child: _isLoading 
+                ? const Center(child: CircularProgressIndicator()) 
+                : _buildTablaRegistros(),
+          ),
         ],
       ),
     );
@@ -60,14 +286,14 @@ class _RegistroVentasScreenState extends State<RegistroVentasScreen> {
         ],
       ),
       actions: [
-        IconButton(icon: Icon(Icons.file_upload_outlined, color: primaryLight), onPressed: () {}), // Exportar
-        IconButton(icon: Icon(Icons.print, color: primaryLight), onPressed: () {}),
+        IconButton(
+          icon: Icon(Icons.refresh, color: primaryLight), 
+          onPressed: _cargarVentas,
+        ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
           child: ElevatedButton.icon(
-            onPressed: () {
-              // Aquí podrías abrir un modal o navegar para forzar un registro manual
-            },
+            onPressed: _crearVentaDePrueba,
             icon: const Icon(Icons.add, size: 16, color: Colors.white),
             label: const Text('Nueva venta', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
             style: ElevatedButton.styleFrom(
@@ -81,50 +307,69 @@ class _RegistroVentasScreenState extends State<RegistroVentasScreen> {
     );
   }
 
-  // --- TOOLBAR ---
+  // --- TOOLBAR CON AMBOS FILTROS ---
   Widget _buildToolbar() {
     return Container(
       color: toolbarBg,
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      child: Column(
         children: [
-          // Buscador
-          Container(
-            width: 240,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(color: Colors.white, border: Border.all(color: borderLight, width: 0.5), borderRadius: BorderRadius.circular(10)),
-            child: Row(
-              children: [
-                Icon(Icons.search, size: 16, color: textMuted),
-                const SizedBox(width: 8),
-                Text('Buscar producto o folio...', style: TextStyle(color: textMuted, fontSize: 12)),
-              ],
-            ),
-          ),
-          // Filtros y Fecha
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              // Fecha (Podría ser dinámica después)
+              // Barra de búsqueda
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(color: Colors.white, border: Border.all(color: borderLight, width: 0.5), borderRadius: BorderRadius.circular(8)),
-                child: Row(
-                  children: [
-                    Icon(Icons.calendar_today, size: 12, color: primaryLight),
-                    const SizedBox(width: 6),
-                    Text('Mes actual', style: TextStyle(color: primaryLight, fontSize: 11, fontWeight: FontWeight.bold)),
-                  ],
+                width: 240,
+                height: 36,
+                decoration: BoxDecoration(color: Colors.white, border: Border.all(color: borderLight, width: 0.5), borderRadius: BorderRadius.circular(10)),
+                child: TextField(
+                  controller: _searchController,
+                  style: TextStyle(color: primaryDark, fontSize: 13),
+                  decoration: InputDecoration(
+                    prefixIcon: Icon(Icons.search, size: 16, color: textMuted),
+                    hintText: 'Buscar producto o folio...',
+                    hintStyle: TextStyle(color: textMuted, fontSize: 12),
+                    border: InputBorder.none,
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                  ),
+                  onChanged: (val) {
+                    _busquedaQuery = val;
+                    _procesarYFiltrarVentas();
+                  },
                 ),
               ),
-              const SizedBox(width: 12),
-              _buildFiltroPill('Todos', 0),
-              const SizedBox(width: 8),
-              _buildFiltroPill('Completados', 1),
-              const SizedBox(width: 8),
-              _buildFiltroPill('Pendientes', 2),
-              const SizedBox(width: 8),
-              _buildFiltroPill('Cancelados', 3),
+              
+              // Filtro de Estado
+              Row(
+                children: [
+                  Text('Estado: ', style: TextStyle(color: primaryDark, fontSize: 11, fontWeight: FontWeight.bold)),
+                  const SizedBox(width: 4),
+                  _buildFiltroPill('Todos', 0),
+                  const SizedBox(width: 6),
+                  _buildFiltroPill('Completados', 1),
+                  const SizedBox(width: 6),
+                  _buildFiltroPill('Pendientes', 2),
+                  const SizedBox(width: 6),
+                  _buildFiltroPill('Cancelados', 3),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          // Fila para el Filtro de Tiempo
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              Text('Período: ', style: TextStyle(color: primaryDark, fontSize: 11, fontWeight: FontWeight.bold)),
+              const SizedBox(width: 4),
+              _buildFiltroTiempoPill('Todos', 0),
+              const SizedBox(width: 6),
+              _buildFiltroTiempoPill('Hoy', 1),
+              const SizedBox(width: 6),
+              _buildFiltroTiempoPill('Semana', 2),
+              const SizedBox(width: 6),
+              _buildFiltroTiempoPill('Mes', 3),
             ],
           ),
         ],
@@ -132,19 +377,44 @@ class _RegistroVentasScreenState extends State<RegistroVentasScreen> {
     );
   }
 
+  // Píldoras para filtro de Estado
   Widget _buildFiltroPill(String texto, int index) {
     bool activo = _filtroActivo == index;
     return InkWell(
-      onTap: () => setState(() => _filtroActivo = index),
+      onTap: () {
+        setState(() => _filtroActivo = index);
+        _procesarYFiltrarVentas();
+      },
       borderRadius: BorderRadius.circular(8),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
         decoration: BoxDecoration(
           color: activo ? primaryLight : Colors.white,
           border: Border.all(color: activo ? primaryLight : borderLight, width: 0.5),
           borderRadius: BorderRadius.circular(8),
         ),
-        child: Text(texto, style: TextStyle(color: activo ? Colors.white : primaryLight, fontSize: 11, fontWeight: FontWeight.bold)),
+        child: Text(texto, style: TextStyle(color: activo ? Colors.white : primaryLight, fontSize: 10, fontWeight: FontWeight.bold)),
+      ),
+    );
+  }
+
+  // Píldoras para filtro de Tiempo
+  Widget _buildFiltroTiempoPill(String texto, int index) {
+    bool activo = _filtroTiempoActivo == index;
+    return InkWell(
+      onTap: () {
+        setState(() => _filtroTiempoActivo = index);
+        _procesarYFiltrarVentas();
+      },
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: activo ? primaryDark : Colors.white,
+          border: Border.all(color: activo ? primaryDark : borderLight, width: 0.5),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Text(texto, style: TextStyle(color: activo ? Colors.white : primaryDark, fontSize: 10, fontWeight: FontWeight.bold)),
       ),
     );
   }
@@ -160,7 +430,6 @@ class _RegistroVentasScreenState extends State<RegistroVentasScreen> {
       ),
       child: Column(
         children: [
-          // Header
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(color: primaryDark, borderRadius: const BorderRadius.vertical(top: Radius.circular(14))),
@@ -172,26 +441,22 @@ class _RegistroVentasScreenState extends State<RegistroVentasScreen> {
                 Expanded(flex: 10, child: _thText('CANTIDAD', color: borderLight, align: TextAlign.center)),
                 Expanded(flex: 11, child: _thText('TOTAL', color: borderLight, align: TextAlign.right)),
                 Expanded(flex: 10, child: _thText('FECHA VENTA', color: borderLight, align: TextAlign.center)),
-                const SizedBox(width: 90, child: Text('ESTADO / ACCIÓN', textAlign: TextAlign.center, style: TextStyle(color: Color(0xFFADCBE3), fontSize: 9, fontWeight: FontWeight.bold, letterSpacing: 0.5))),
+                const SizedBox(width: 95, child: Text('ESTADO / ACCIÓN', textAlign: TextAlign.center, style: TextStyle(color: Color(0xFFADCBE3), fontSize: 9, fontWeight: FontWeight.bold, letterSpacing: 0.5))),
               ],
             ),
           ),
-          
-          // Cuerpo de la Tabla (Validando si está vacía)
           Expanded(
-            child: _registros.isEmpty 
+            child: _ventasFiltradas.isEmpty 
                 ? _buildEstadoVacio() 
                 : ListView.builder(
-                    itemCount: _registros.length,
+                    itemCount: _ventasFiltradas.length,
                     itemBuilder: (context, index) {
-                      var reg = _registros[index];
+                      var reg = _ventasFiltradas[index];
                       bool isEven = index % 2 == 0;
                       return _buildFilaRegistro(reg, isEven);
                     },
                   ),
           ),
-          
-          // Footer Estadístico
           _buildFooterEstadistico(),
         ],
       ),
@@ -202,7 +467,6 @@ class _RegistroVentasScreenState extends State<RegistroVentasScreen> {
     return Text(text, textAlign: align, style: TextStyle(color: color, fontSize: 9, fontWeight: FontWeight.bold, letterSpacing: 0.5));
   }
 
-  // --- DISEÑO DE ESTADO VACÍO ---
   Widget _buildEstadoVacio() {
     return Center(
       child: Column(
@@ -210,42 +474,34 @@ class _RegistroVentasScreenState extends State<RegistroVentasScreen> {
         children: [
           Icon(Icons.receipt_long_outlined, size: 64, color: borderLight.withOpacity(0.5)),
           const SizedBox(height: 16),
-          Text(
-            'Aún no hay registros de ventas',
-            style: TextStyle(color: primaryDark, fontSize: 16, fontWeight: FontWeight.bold),
-          ),
+          Text('No hay registros de ventas', style: TextStyle(color: primaryDark, fontSize: 16, fontWeight: FontWeight.bold)),
           const SizedBox(height: 8),
-          Text(
-            'Las ventas que confirmes aparecerán aquí.',
-            style: TextStyle(color: textMuted, fontSize: 13),
-          ),
+          Text('Registra transacciones para verlas aquí o cambia los filtros.', style: TextStyle(color: textMuted, fontSize: 13)),
         ],
       ),
     );
   }
 
-  // --- FILA DINÁMICA (Lista para cuando haya datos) ---
   Widget _buildFilaRegistro(Map<String, dynamic> reg, bool isEven) {
     double total = reg['precio'] * reg['cantidad'];
 
     Color badgeBgColor, badgeTextColor;
     IconData statusIcon;
-    String statusText;
-    bool isCanceled = reg['estado'] == 'Cancelado';
+    String statusText = reg['estado'];
 
-    switch (reg['estado']) {
+    switch (statusText) {
       case 'Completado':
         badgeBgColor = const Color(0xFFD6F0EB); badgeTextColor = const Color(0xFF0F6E56);
-        statusIcon = Icons.check; statusText = 'Completado';
+        statusIcon = Icons.check;
         break;
       case 'Pendiente':
         badgeBgColor = const Color(0xFFFFF3E0); badgeTextColor = const Color(0xFF854F0B);
-        statusIcon = Icons.hourglass_bottom; statusText = 'Pendiente';
+        statusIcon = Icons.hourglass_bottom;
         break;
       case 'Cancelado':
       default:
-        badgeBgColor = const Color(0xFFFCE9E9); badgeTextColor = const Color(0xFFA32D2D);
-        statusIcon = Icons.close; statusText = 'Cancelado';
+        badgeBgColor = const Color(0xFFFCE9E9); badgeTextColor = const Color(0xFFC53030);
+        statusIcon = Icons.close;
         break;
     }
 
@@ -263,8 +519,8 @@ class _RegistroVentasScreenState extends State<RegistroVentasScreen> {
               children: [
                 Container(
                   padding: const EdgeInsets.all(4),
-                  decoration: BoxDecoration(color: reg['colorIcono'], borderRadius: BorderRadius.circular(6)),
-                  child: Icon(reg['icono'], color: Colors.white, size: 12),
+                  decoration: BoxDecoration(color: primaryLight.withOpacity(0.2), borderRadius: BorderRadius.circular(6)),
+                  child: Icon(Icons.sell, color: primaryLight, size: 12),
                 ),
                 const SizedBox(width: 8),
                 Expanded(child: Text(reg['producto'], style: TextStyle(color: primaryDark, fontSize: 11, fontWeight: FontWeight.w500), overflow: TextOverflow.ellipsis)),
@@ -294,26 +550,38 @@ class _RegistroVentasScreenState extends State<RegistroVentasScreen> {
           Expanded(flex: 11, child: Text('\$${total.toStringAsFixed(2)}', textAlign: TextAlign.right, style: TextStyle(color: primaryDark, fontSize: 11, fontWeight: FontWeight.bold))),
           Expanded(flex: 10, child: Text(reg['fecha'], textAlign: TextAlign.center, style: TextStyle(color: textMuted, fontSize: 11))),
           SizedBox(
-            width: 90,
+            width: 95,
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                  decoration: BoxDecoration(color: badgeBgColor, borderRadius: BorderRadius.circular(6)),
-                  child: Row(
-                    children: [
-                      Icon(statusIcon, size: 10, color: badgeTextColor),
-                      const SizedBox(width: 2),
-                      Text(statusText, style: TextStyle(color: badgeTextColor, fontSize: 9, fontWeight: FontWeight.bold)),
-                    ],
+                PopupMenuButton<String>(
+                  tooltip: 'Cambiar estado',
+                  onSelected: (nuevoEstado) => _cambiarEstadoVenta(reg['id_venta'], nuevoEstado),
+                  itemBuilder: (context) => [
+                    const PopupMenuItem(value: 'Completado', child: Text('Completado')),
+                    const PopupMenuItem(value: 'Pendiente', child: Text('Pendiente')),
+                    const PopupMenuItem(value: 'Cancelado', child: Text('Cancelado')),
+                  ],
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                    decoration: BoxDecoration(color: badgeBgColor, borderRadius: BorderRadius.circular(6)),
+                    child: Row(
+                      children: [
+                        Icon(statusIcon, size: 10, color: badgeTextColor),
+                        const SizedBox(width: 2),
+                        Text(statusText, style: TextStyle(color: badgeTextColor, fontSize: 9, fontWeight: FontWeight.bold)),
+                      ],
+                    ),
                   ),
                 ),
                 const SizedBox(width: 4),
-                Container(
-                  width: 24, height: 24,
-                  decoration: BoxDecoration(color: isCanceled ? const Color(0xFFFCE9E9) : bgLight, borderRadius: BorderRadius.circular(6)),
-                  child: Icon(isCanceled ? Icons.delete_outline : Icons.visibility_outlined, size: 14, color: isCanceled ? const Color(0xFFA32D2D) : primaryLight),
+                InkWell(
+                  onTap: () => _eliminarVenta(reg['id_venta'], reg['folio']),
+                  child: Container(
+                    width: 24, height: 24,
+                    decoration: BoxDecoration(color: const Color(0xFFFCE9E9), borderRadius: BorderRadius.circular(6)),
+                    child: const Icon(Icons.delete_outline, size: 14, color: Color(0xFFA32D2D)),
+                  ),
                 ),
               ],
             ),
@@ -323,16 +591,13 @@ class _RegistroVentasScreenState extends State<RegistroVentasScreen> {
     );
   }
 
-  // --- FOOTER ESTADÍSTICO DINÁMICO ---
   Widget _buildFooterEstadistico() {
-    // Calculamos todo al vuelo. Como ahora está vacío, mostrará 0s. 
-    // Cuando conectes Supabase, esto se actualizará solo.
-    int completadas = _registros.where((r) => r['estado'] == 'Completado').length;
-    int pendientes = _registros.where((r) => r['estado'] == 'Pendiente').length;
-    int canceladas = _registros.where((r) => r['estado'] == 'Cancelado').length;
+    int completadas = _ventasFiltradas.where((r) => r['estado'] == 'Completado').length;
+    int pendientes = _ventasFiltradas.where((r) => r['estado'] == 'Pendiente').length;
+    int canceladas = _ventasFiltradas.where((r) => r['estado'] == 'Cancelado').length;
     
-    double totalVendido = _registros.fold(0.0, (sum, item) {
-      if (item['estado'] != 'Cancelado') {
+    double totalVendido = _ventasFiltradas.fold(0.0, (sum, item) {
+      if (item['estado'] == 'Completado') {
         return sum + (item['precio'] * item['cantidad']);
       }
       return sum;
@@ -346,7 +611,7 @@ class _RegistroVentasScreenState extends State<RegistroVentasScreen> {
         children: [
           Row(
             children: [
-              _buildStatFooterItem(Icons.receipt, 'Ventas totales:', '${_registros.length} registros'),
+              _buildStatFooterItem(Icons.receipt, 'Totales:', '${_ventasFiltradas.length} reg.'),
               const SizedBox(width: 16),
               _buildStatFooterItem(Icons.check_circle_outline, 'Completadas:', '$completadas'),
               const SizedBox(width: 16),

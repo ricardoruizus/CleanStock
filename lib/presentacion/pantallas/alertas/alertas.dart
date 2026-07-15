@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart'; // <-- Conexión a Base de Datos
 
 class AlertasScreen extends StatefulWidget {
   const AlertasScreen({super.key});
@@ -15,66 +16,176 @@ class _AlertasScreenState extends State<AlertasScreen> {
   final Color borderLight = const Color(0xFFADCBE3);
   final Color textMuted = const Color(0xFF9AB4C8);
 
-  int _filtroActivo = 0; // 0: Activas, 1: Resueltas, 2: Todas
+  final _supabase = Supabase.instance.client;
 
-  // --- DATOS (Lista vacía esperando a Supabase) ---
-  final List<Map<String, dynamic>> _alertas = [];
+  int _filtroActivo = 0; // 0: Activas, 1: Resueltas (Stock >= 15), 2: Todas
+  bool _isLoading = true;
+
+  // --- DATOS PROCESADOS DE SUPABASE ---
+  List<Map<String, dynamic>> _todasLasAlertas = []; 
+  List<Map<String, dynamic>> _alertasFiltradas = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _cargarAlertas();
+  }
+
+  // --- CARGAR Y PROCESAR ALERTAS DESDE SUPABASE ---
+  Future<void> _cargarAlertas() async {
+    setState(() => _isLoading = true);
+    try {
+      final response = await _supabase
+          .from('productos')
+          .select()
+          .order('stock', ascending: true);
+
+      final List<Map<String, dynamic>> productos = List<Map<String, dynamic>>.from(response);
+      List<Map<String, dynamic>> alertasProcesadas = [];
+
+      for (var prod in productos) {
+        int stock = prod['stock'] ?? 0;
+        double precio = (prod['precio'] as num?)?.toDouble() ?? 0.0;
+        String nombre = prod['nombre'] ?? 'Sin nombre';
+
+        String estado = 'Normal';
+        Color colorTexto = primaryDark;
+        Color colorFondo = Colors.white;
+        double impacto = 0.0; 
+
+        // REGLAS SOLICITADAS:
+        if (stock == 0) {
+          estado = 'Agotado';
+          colorTexto = const Color(0xFFC53030); // Rojo oscuro
+          colorFondo = const Color(0xFFFCE8E6);
+          impacto = precio * 10; // Impacto estimado por quiebre de stock total
+        } else if (stock <= 5) {
+          estado = 'Bajo stock';
+          colorTexto = const Color(0xFFA32D2D); // Rojo intermedio
+          colorFondo = const Color(0xFFFDF2F2);
+          impacto = precio * (10 - stock); // Pérdida de ventas potenciales
+        } else if (stock < 15) {
+          estado = 'Aviso';
+          colorTexto = const Color(0xFFB7791F); // Naranja preventivo
+          colorFondo = const Color(0xFFFEF3C7);
+          impacto = precio * (15 - stock) * 0.5; // Menor urgencia de impacto
+        }
+
+        alertasProcesadas.add({
+          'id': prod['id'],
+          'producto': nombre,
+          'precio': precio,
+          'stock': stock,
+          'estado': estado,
+          'impacto': impacto,
+          'colorTexto': colorTexto,
+          'colorFondo': colorFondo,
+        });
+      }
+
+      setState(() {
+        _todasLasAlertas = alertasProcesadas;
+        _filtrarAlertas();
+      });
+
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error al cargar alertas: $e'), backgroundColor: Colors.redAccent),
+        );
+      }
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  // --- APLICACIÓN DE LOS TABS DE FILTRADO ---
+  void _filtrarAlertas() {
+    List<Map<String, dynamic>> temp = [];
+
+    for (var alerta in _todasLasAlertas) {
+      String est = alerta['estado'];
+      if (_filtroActivo == 0) {
+        // Solo las activas (Agotado, Bajo stock, Aviso)
+        if (est == 'Agotado' || est == 'Bajo stock' || est == 'Aviso') {
+          temp.add(alerta);
+        }
+      } else if (_filtroActivo == 1) {
+        // Resueltas (Productos con stock seguro >= 15)
+        if (est == 'Normal') {
+          temp.add(alerta);
+        }
+      } else {
+        // Todas las existencias sin excepción
+        temp.add(alerta);
+      }
+    }
+
+    setState(() {
+      _alertasFiltradas = temp;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
+    // Cuenta cuántos elementos reales de alarma hay activos
+    int cantidadActivas = _todasLasAlertas.where((a) => a['estado'] != 'Normal').length;
+
     return Scaffold(
       backgroundColor: bgLight,
       appBar: _buildAppBar(),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // INTRODUCCIÓN
-            Text('Centro de Alertas', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: primaryDark)),
-            const SizedBox(height: 4),
-            Text('Monitoree el inventario en tiempo real. Gestione existencias críticas.', style: TextStyle(fontSize: 13, color: textMuted)),
-            const SizedBox(height: 16),
+      body: _isLoading 
+          ? const Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // INTRODUCCIÓN
+                  Text('Centro de Alertas', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: primaryDark)),
+                  const SizedBox(height: 4),
+                  Text('Monitoree el inventario en tiempo real. Gestione existencias críticas.', style: TextStyle(fontSize: 13, color: textMuted)),
+                  const SizedBox(height: 16),
 
-            // TABS DE FILTRO
-            Row(
-              children: [
-                _buildFiltroTab('Activas', 0, badge: _alertas.isNotEmpty ? '${_alertas.length}' : null),
-                const SizedBox(width: 8),
-                _buildFiltroTab('Resueltas', 1),
-                const SizedBox(width: 8),
-                _buildFiltroTab('Todas', 2),
-              ],
-            ),
-            const SizedBox(height: 20),
-
-            // PANELES
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // PANEL IZQUIERDO (Lista de Alertas)
-                Expanded(
-                  flex: 3,
-                  child: _buildTablaAlertas(),
-                ),
-                const SizedBox(width: 16),
-                
-                // PANEL DERECHO (Acciones e Impacto)
-                Expanded(
-                  flex: 2,
-                  child: Column(
+                  // TABS DE FILTRO[cite: 3]
+                  Row(
                     children: [
-                      _buildAccionesSugeridas(),
-                      const SizedBox(height: 16),
-                      _buildImpactoFinanciero(),
+                      _buildFiltroTab('Activas', 0, badge: cantidadActivas > 0 ? '$cantidadActivas' : null),
+                      const SizedBox(width: 8),
+                      _buildFiltroTab('Resueltas', 1),
+                      const SizedBox(width: 8),
+                      _buildFiltroTab('Todas', 2),
                     ],
                   ),
-                ),
-              ],
+                  const SizedBox(height: 20),
+
+                  // PANELES[cite: 3]
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // PANEL IZQUIERDO (Lista de Alertas filtradas)
+                      Expanded(
+                        flex: 3,
+                        child: _buildTablaAlertas(),
+                      ),
+                      const SizedBox(width: 16),
+                      
+                      // PANEL DERECHO (Acciones e Impacto financiero dinámicos)
+                      Expanded(
+                        flex: 2,
+                        child: Column(
+                          children: [
+                            _buildAccionesSugeridas(cantidadActivas),
+                            const SizedBox(height: 16),
+                            _buildImpactoFinanciero(),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
-          ],
-        ),
-      ),
     );
   }
 
@@ -103,22 +214,9 @@ class _AlertasScreenState extends State<AlertasScreen> {
         ],
       ),
       actions: [
-        IconButton(icon: Icon(Icons.tune, color: primaryLight), onPressed: () {}),
-        IconButton(icon: Icon(Icons.download, color: primaryLight), onPressed: () {}),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 10.0),
-          child: ElevatedButton.icon(
-            onPressed: () {
-              // Lógica para marcar como resueltas
-            },
-            icon: const Icon(Icons.checklist, size: 16, color: Colors.white),
-            label: const Text('Marcar resueltas', style: TextStyle(color: Colors.white)),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: primaryLight,
-              elevation: 0,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            ),
-          ),
+        IconButton(
+          icon: Icon(Icons.refresh, color: primaryLight), 
+          onPressed: _cargarAlertas // Botón para recargar la base de datos de manera manual
         ),
       ],
     );
@@ -128,7 +226,10 @@ class _AlertasScreenState extends State<AlertasScreen> {
   Widget _buildFiltroTab(String titulo, int index, {String? badge}) {
     bool isSelected = _filtroActivo == index;
     return GestureDetector(
-      onTap: () => setState(() => _filtroActivo = index),
+      onTap: () {
+        setState(() => _filtroActivo = index);
+        _filtrarAlertas();
+      },
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
@@ -142,8 +243,8 @@ class _AlertasScreenState extends State<AlertasScreen> {
             if (badge != null) ...[
               const SizedBox(width: 6),
               Container(
-                padding: const EdgeInsets.all(4),
-                decoration: const BoxDecoration(color: Color(0xFFE24B4A), shape: BoxShape.circle),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(color: const Color(0xFFE24B4A), borderRadius: BorderRadius.circular(10)),
                 child: Text(badge, style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
               ),
             ]
@@ -179,15 +280,15 @@ class _AlertasScreenState extends State<AlertasScreen> {
           ),
           
           // Contenido (Validamos si hay alertas)
-          if (_alertas.isEmpty)
+          if (_alertasFiltradas.isEmpty)
             _buildEstadoVacioAlertas()
           else
-            ..._alertas.asMap().entries.map((entry) {
+            ..._alertasFiltradas.asMap().entries.map((entry) {
               bool isEven = entry.key % 2 != 0;
               return _buildDataRow(entry.value, isEven);
             }),
 
-          // Paginación
+          // Footer estadístico
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
@@ -198,14 +299,10 @@ class _AlertasScreenState extends State<AlertasScreen> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text('Mostrando ${_alertas.length} de ${_alertas.length} alertas activas', style: TextStyle(color: textMuted, fontSize: 12)),
-                Row(
-                  children: [
-                    _buildPagBtn(Icons.chevron_left),
-                    const SizedBox(width: 8),
-                    _buildPagBtn(Icons.chevron_right),
-                  ],
-                )
+                Text(
+                  'Mostrando ${_alertasFiltradas.length} productos en lista', 
+                  style: TextStyle(color: textMuted, fontSize: 12)
+                ),
               ],
             ),
           ),
@@ -222,9 +319,9 @@ class _AlertasScreenState extends State<AlertasScreen> {
           children: [
             Icon(Icons.notifications_off_outlined, size: 50, color: borderLight.withOpacity(0.8)),
             const SizedBox(height: 12),
-            Text('No hay alertas activas', style: TextStyle(color: primaryDark, fontSize: 16, fontWeight: FontWeight.bold)),
+            Text('No hay registros aquí', style: TextStyle(color: primaryDark, fontSize: 16, fontWeight: FontWeight.bold)),
             const SizedBox(height: 4),
-            Text('Todo tu inventario está bajo control.', style: TextStyle(color: textMuted, fontSize: 12)),
+            Text('No se encontraron productos para esta categoría.', style: TextStyle(color: textMuted, fontSize: 12)),
           ],
         ),
       ),
@@ -245,24 +342,41 @@ class _AlertasScreenState extends State<AlertasScreen> {
       child: Row(
         children: [
           Expanded(flex: 3, child: Text(alerta['producto'], style: TextStyle(color: primaryDark, fontSize: 12, fontWeight: FontWeight.w600))),
-          Expanded(flex: 1, child: Text('\$${alerta['precio']}', textAlign: TextAlign.right, style: TextStyle(color: primaryDark, fontSize: 12))),
-          Expanded(flex: 2, child: Text('${alerta['stock']}', textAlign: TextAlign.center, style: TextStyle(color: const Color(0xFFA32D2D), fontSize: 14, fontWeight: FontWeight.bold))),
-          Expanded(flex: 2, child: Text(alerta['estado'], textAlign: TextAlign.center, style: TextStyle(color: const Color(0xFFA32D2D), fontSize: 10, fontWeight: FontWeight.bold))),
+          Expanded(flex: 1, child: Text('\$${alerta['precio'].toStringAsFixed(2)}', textAlign: TextAlign.right, style: TextStyle(color: primaryDark, fontSize: 12))),
+          // Muestra el stock con los colores de alerta
+          Expanded(
+            flex: 2, 
+            child: Text(
+              '${alerta['stock']}', 
+              textAlign: TextAlign.center, 
+              style: TextStyle(color: alerta['colorTexto'], fontSize: 14, fontWeight: FontWeight.bold),
+            ),
+          ),
+          // Badge dinámico según las nuevas reglas de negocio
+          Expanded(
+            flex: 2, 
+            child: Center(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: alerta['colorFondo'],
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  alerta['estado'], 
+                  textAlign: TextAlign.center, 
+                  style: TextStyle(color: alerta['colorTexto'], fontSize: 10, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildPagBtn(IconData icon) {
-    return Container(
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(color: Colors.white, border: Border.all(color: borderLight, width: 0.5), borderRadius: BorderRadius.circular(6)),
-      child: Icon(icon, size: 16, color: primaryLight),
-    );
-  }
-
-  // --- PANELES DERECHOS ---
-  Widget _buildAccionesSugeridas() {
+  // --- PANEL ACCIONES ---
+  Widget _buildAccionesSugeridas(int cantidadActivas) {
     return Container(
       decoration: BoxDecoration(border: Border.all(color: borderLight, width: 0.5), borderRadius: BorderRadius.circular(12)),
       child: Column(
@@ -283,11 +397,13 @@ class _AlertasScreenState extends State<AlertasScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             color: Colors.white,
             child: Text(
-              _alertas.isEmpty ? 'No hay acciones requeridas por el momento.' : 'Basado en sus alertas actuales, le recomendamos:', 
+              cantidadActivas == 0 
+                  ? 'No hay acciones requeridas por el momento.' 
+                  : 'Basado en sus alertas críticas actuales, le recomendamos:', 
               style: TextStyle(color: textMuted, fontSize: 11)
             ),
           ),
-          if (_alertas.isNotEmpty) ...[
+          if (cantidadActivas > 0) ...[
             _buildActionRow(Icons.shopping_cart, 'Generar orden de compra masiva', isPrimary: true),
             _buildActionRow(Icons.contact_phone, 'Contactar proveedores críticos', isPrimary: false),
           ]
@@ -313,9 +429,12 @@ class _AlertasScreenState extends State<AlertasScreen> {
     );
   }
 
+  // --- PANEL IMPACTO FINANCIERO DINÁMICO ---
   Widget _buildImpactoFinanciero() {
-    // Calculamos el impacto basado en la lista (si está vacía, será 0)
-    double impactoTotal = _alertas.fold(0, (sum, item) => sum + (item['impacto'] ?? 0.0));
+    // Filtramos solo los elementos activos reales para calcular la pérdida estimada
+    double impactoTotal = _todasLasAlertas
+        .where((a) => a['estado'] != 'Normal')
+        .fold(0, (sum, item) => sum + (item['impacto'] ?? 0.0));
 
     return Container(
       decoration: BoxDecoration(border: Border.all(color: borderLight, width: 0.5), borderRadius: BorderRadius.circular(12)),

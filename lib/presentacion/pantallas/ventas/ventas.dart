@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class VentasScreen extends StatefulWidget {
   const VentasScreen({super.key});
@@ -8,21 +9,15 @@ class VentasScreen extends StatefulWidget {
 }
 
 class _VentasScreenState extends State<VentasScreen> {
+  final _supabase = Supabase.instance.client;
+
   // --- VARIABLES DE ESTADO ---
-  
-  // Lo que el usuario escribe en el teclado numérico (Código de barras/ID)
   String _codigoInput = ""; 
-
-  // Lista de productos agregados al ticket actual
   List<Map<String, dynamic>> _ticket = [];
-
-  // Catálogo de productos (Simulado para el ejemplo)
-  final List<Map<String, dynamic>> _catalogo = [
-    {'id': '750105531', 'nombre': 'Coca Cola 600ml', 'precio': 18.00, 'icono': Icons.local_drink, 'color': Colors.red},
-    {'id': '750103042', 'nombre': 'Papas Sabritas 45g', 'precio': 22.50, 'icono': Icons.fastfood, 'color': Colors.orange},
-    {'id': '750162243', 'nombre': 'Leche Alpura 1L', 'precio': 28.00, 'icono': Icons.breakfast_dining, 'color': Colors.blue},
-    {'id': '750100014', 'nombre': 'Pan Blanco Bimbo', 'precio': 45.00, 'icono': Icons.bakery_dining, 'color': Colors.amber},
-  ];
+  
+  // Catálogo real traído de la Base de Datos
+  List<Map<String, dynamic>> _catalogo = [];
+  bool _isLoadingCatalog = true;
 
   // Paleta de colores[cite: 2]
   final Color bgLight = const Color(0xFFE8EFF7);
@@ -31,6 +26,29 @@ class _VentasScreenState extends State<VentasScreen> {
   final Color borderLight = const Color(0xFFADCBE3);
   final Color textMuted = const Color(0xFF9AB4C8);
   final Color leftPanelBg = const Color(0xFFF0F6FB);
+
+  @override
+  void initState() {
+    super.initState();
+    _cargarCatalogoProductos();
+  }
+
+  // Carga inicial de productos desde la base de datos
+  Future<void> _cargarCatalogoProductos() async {
+    try {
+      final data = await _supabase
+          .from('productos')
+          .select('id, nombre, precio, stock');
+      
+      setState(() {
+        _catalogo = List<Map<String, dynamic>>.from(data);
+        _isLoadingCatalog = false;
+      });
+    } catch (e) {
+      _mostrarSnack('Error al cargar catálogo: $e', Colors.red);
+      setState(() => _isLoadingCatalog = false);
+    }
+  }
 
   // --- LÓGICA DE NEGOCIO ---
 
@@ -48,25 +66,24 @@ class _VentasScreenState extends State<VentasScreen> {
     });
   }
 
-  // Filtra el catálogo en tiempo real según lo escrito en _codigoInput
   List<Map<String, dynamic>> _obtenerSugerencias() {
     if (_codigoInput.isEmpty) return [];
     return _catalogo.where((producto) {
-      return producto['id']!.contains(_codigoInput) ||
+      final idStr = producto['id'].toString();
+      return idStr.contains(_codigoInput) ||
              producto['nombre']!.toLowerCase().contains(_codigoInput.toLowerCase());
     }).toList();
   }
 
   void _buscarYAgregarPorCodigo(String codigo) {
-    final productoIndex = _catalogo.indexWhere((item) => item['id'] == codigo);
+    final idBuscado = int.tryParse(codigo);
+    final productoIndex = _catalogo.indexWhere((item) => item['id'] == idBuscado);
 
     if (productoIndex != -1) {
       _agregarAlTicket(_catalogo[productoIndex]);
       _codigoInput = "";
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Código de producto no encontrado.'), backgroundColor: Colors.red),
-      );
+      _mostrarSnack('Código de producto no encontrado.', Colors.red);
     }
   }
 
@@ -75,16 +92,23 @@ class _VentasScreenState extends State<VentasScreen> {
       int index = _ticket.indexWhere((item) => item['id'] == producto['id']);
       
       if (index != -1) {
-        _ticket[index]['cantidad'] += 1;
+        if (_ticket[index]['cantidad'] < producto['stock']) {
+          _ticket[index]['cantidad'] += 1;
+        } else {
+          _mostrarSnack('No puedes agregar más de este producto. Stock límite alcanzado.', Colors.orange);
+        }
       } else {
-        _ticket.add({
-          'id': producto['id'],
-          'nombre': producto['nombre'],
-          'precio': producto['precio'],
-          'icono': producto['icono'],
-          'color': producto['color'],
-          'cantidad': 1,
-        });
+        if (producto['stock'] > 0) {
+          _ticket.add({
+            'id': producto['id'],
+            'nombre': producto['nombre'],
+            'precio': (producto['precio'] as num).toDouble(),
+            'cantidad': 1,
+            'stock': producto['stock']
+          });
+        } else {
+          _mostrarSnack('Producto sin stock disponible.', Colors.orange);
+        }
       }
     });
   }
@@ -95,22 +119,67 @@ class _VentasScreenState extends State<VentasScreen> {
     });
   }
 
-  void _confirmarVenta() {
+  // --- CONFIRMAR VENTA (GUARDADO REAL EN BASE DE DATOS) ---
+  Future<void> _confirmarVenta() async {
     if (_ticket.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('El ticket está vacío.'), backgroundColor: Colors.orange),
-      );
+      _mostrarSnack('El ticket está vacío.', Colors.orange);
       return;
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('¡Venta registrada con éxito!'), backgroundColor: Color(0xFF2E9E8A)),
-    );
+    setState(() => _isLoadingCatalog = true);
 
-    setState(() {
-      _ticket.clear();
-      _codigoInput = "";
-    });
+    try {
+      final double totalVenta = _ticket.fold(0.0, (sum, item) => sum + (item['precio'] * item['cantidad']));
+      final String folioUnico = 'V-${DateTime.now().millisecondsSinceEpoch.toString().substring(5)}';
+
+      // 1. Insertar la venta cabecera (Maestro) en 'ventas'[cite: 3]
+      final nuevaVenta = await _supabase.from('ventas').insert({
+        'folio': folioUnico,
+        'total': totalVenta,
+        'estado': 'Completado',
+      }).select().single();
+
+      final int ventaId = nuevaVenta['id'];
+
+      // 2. Insertar cada renglón en 'venta_detalles'[cite: 3]
+      for (var item in _ticket) {
+        await _supabase.from('venta_detalles').insert({
+          'venta_id': ventaId,
+          'producto_id': item['id'],
+          'cantidad': item['cantidad'],
+          'precio_unitario': item['precio'],
+          // El subtotal se calcula solo en la BD gracias al script alter[cite: 3]
+        });
+
+        // 3. Descontar stock del producto en la tabla 'productos'
+        await _supabase.rpc('descontar_stock', params: {
+          'p_id': item['id'],
+          'p_cantidad': item['cantidad']
+        });
+      }
+
+      _mostrarSnack('¡Venta $folioUnico registrada con éxito!', const Color(0xFF2E9E8A));
+      
+      setState(() {
+        _ticket.clear();
+        _codigoInput = "";
+      });
+
+      // Recargar catálogo para actualizar stocks en pantalla
+      await _cargarCatalogoProductos();
+
+    } catch (e) {
+      _mostrarSnack('Error al procesar la venta: $e', Colors.red);
+    } finally {
+      setState(() => _isLoadingCatalog = false);
+    }
+  }
+
+  void _mostrarSnack(String msg, Color color) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(msg), backgroundColor: color, behavior: SnackBarBehavior.floating),
+    );
   }
 
   // --- CONSTRUCCIÓN DE LA INTERFAZ ---
@@ -120,43 +189,45 @@ class _VentasScreenState extends State<VentasScreen> {
     return Scaffold(
       backgroundColor: bgLight,
       appBar: _buildAppBar(),
-      body: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // PANEL IZQUIERDO (Búsqueda, Sugerencias automáticas y Teclado)[cite: 2]
-          Container(
-            width: 290, 
-            color: leftPanelBg,
-            padding: const EdgeInsets.all(12.0),
-            child: Column(
+      body: _isLoadingCatalog 
+          ? const Center(child: CircularProgressIndicator())
+          : Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _buildDisplayCodigo(), // Muestra el código actual arriba de forma limpia
-                const SizedBox(height: 10),
-                Expanded(child: _buildPanelSugerencias()), // Sugerencias automáticas fijas en pantalla
-                const SizedBox(height: 10),
-                _buildNumpad(), // El teclado numérico abajo[cite: 2]
+                // PANEL IZQUIERDO (Búsqueda, Sugerencias y Teclado)[cite: 2]
+                Container(
+                  width: 290, 
+                  color: leftPanelBg,
+                  padding: const EdgeInsets.all(12.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _buildDisplayCodigo(), 
+                      const SizedBox(height: 10),
+                      Expanded(child: _buildPanelSugerencias()), 
+                      const SizedBox(height: 10),
+                      _buildNumpad(), 
+                    ],
+                  ),
+                ),
+                
+                Container(width: 0.5, color: borderLight),
+
+                // PANEL DERECHO (Ticket)[cite: 2]
+                Expanded(
+                  child: Container(
+                    color: bgLight,
+                    child: Column(
+                      children: [
+                        _buildCabeceraTabla(),
+                        Expanded(child: _buildCuerpoTabla()),
+                        _buildPieTabla(),
+                      ],
+                    ),
+                  ),
+                ),
               ],
             ),
-          ),
-          
-          Container(width: 0.5, color: borderLight),
-
-          // PANEL DERECHO (Ticket)[cite: 2]
-          Expanded(
-            child: Container(
-              color: bgLight,
-              child: Column(
-                children: [
-                  _buildCabeceraTabla(),
-                  Expanded(child: _buildCuerpoTabla()),
-                  _buildPieTabla(),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
     );
   }
 
@@ -184,8 +255,7 @@ class _VentasScreenState extends State<VentasScreen> {
         ],
       ),
       actions: [
-        IconButton(icon: Icon(Icons.history, color: primaryLight), onPressed: () {}),
-        IconButton(icon: Icon(Icons.print, color: primaryLight), onPressed: () {}),
+        IconButton(icon: Icon(Icons.refresh, color: primaryLight), onPressed: _cargarCatalogoProductos),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 10.0),
           child: ElevatedButton.icon(
@@ -203,7 +273,6 @@ class _VentasScreenState extends State<VentasScreen> {
     );
   }
 
-  // --- ENTRADA VISUAL DEL CÓDIGO ---
   Widget _buildDisplayCodigo() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
@@ -231,7 +300,6 @@ class _VentasScreenState extends State<VentasScreen> {
     );
   }
 
-  // --- PANEL FIJO DE SUGERENCIAS EN TIEMPO REAL ---
   Widget _buildPanelSugerencias() {
     final sugerencias = _obtenerSugerencias();
 
@@ -266,25 +334,25 @@ class _VentasScreenState extends State<VentasScreen> {
                       onTap: () {
                         _agregarAlTicket(prod);
                         setState(() {
-                          _codigoInput = ""; // Limpia la búsqueda tras dar tap
+                          _codigoInput = ""; 
                         });
                       },
                       child: Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                         child: Row(
                           children: [
-                            Icon(Icons.circle, size: 8, color: prod['color']),
+                            Icon(Icons.circle, size: 8, color: primaryLight),
                             const SizedBox(width: 8),
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(prod['nombre'], style: TextStyle(color: primaryDark, fontSize: 11, fontWeight: FontWeight.w500), overflow: TextOverflow.ellipsis),
-                                  Text(prod['id'], style: TextStyle(color: textMuted, fontSize: 9)),
+                                  Text('ID: ${prod['id']} - Stock: ${prod['stock']}', style: TextStyle(color: textMuted, fontSize: 9)),
                                 ],
                               ),
                             ),
-                            Text('\$${prod['precio'].toStringAsFixed(2)}', style: TextStyle(color: primaryLight, fontSize: 11, fontWeight: FontWeight.bold)),
+                            Text('\$${(prod['precio'] as num).toDouble().toStringAsFixed(2)}', style: TextStyle(color: primaryLight, fontSize: 11, fontWeight: FontWeight.bold)),
                             const SizedBox(width: 4),
                             Icon(Icons.add_circle_outline, size: 14, color: primaryLight),
                           ],
@@ -302,7 +370,7 @@ class _VentasScreenState extends State<VentasScreen> {
       crossAxisSpacing: 6,
       mainAxisSpacing: 6,
       childAspectRatio: 1.5,
-      shrinkWrap: true, // Se adapta al tamaño restante del panel izquierdo
+      shrinkWrap: true, 
       physics: const NeverScrollableScrollPhysics(),
       children: [
         _buildTeclaNum('1'), _buildTeclaNum('2'), _buildTeclaNum('3'),
@@ -400,8 +468,6 @@ class _VentasScreenState extends State<VentasScreen> {
 
         return _buildFilaTicket(
           index,
-          item['icono'],
-          item['color'],
           item['nombre'],
           item['cantidad'].toString(),
           '\$${item['precio'].toStringAsFixed(2)}',
@@ -412,7 +478,7 @@ class _VentasScreenState extends State<VentasScreen> {
     );
   }
 
-  Widget _buildFilaTicket(int index, IconData icon, Color color, String nombre, String cant, String precio, String total, bool isEven) {
+  Widget _buildFilaTicket(int index, String nombre, String cant, String precio, String total, bool isEven) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: BoxDecoration(
@@ -427,8 +493,8 @@ class _VentasScreenState extends State<VentasScreen> {
               children: [
                 Container(
                   padding: const EdgeInsets.all(4),
-                  decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(4)),
-                  child: Icon(icon, color: Colors.white, size: 12),
+                  decoration: BoxDecoration(color: primaryLight, borderRadius: BorderRadius.circular(4)),
+                  child: const Icon(Icons.sell, color: Colors.white, size: 12),
                 ),
                 const SizedBox(width: 8),
                 Expanded(child: Text(nombre, style: TextStyle(color: primaryDark, fontSize: 12, fontWeight: FontWeight.w500))),
