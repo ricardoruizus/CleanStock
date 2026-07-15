@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'inicio_sesion.dart'; // <-- Importación agregada
 
 class ConfiguracionScreen extends StatefulWidget {
   const ConfiguracionScreen({super.key});
@@ -17,18 +20,186 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
   final Color leftColBg = const Color(0xFFF0F6FB);
 
   // --- VARIABLES DE ESTADO ---
-  int _navActivo = 0; // 0: General, 1: Cuenta, 2: Apariencia
-  bool _isDarkMode = false; // Control del tema
+  int _navActivo = 1; 
+  bool _isDarkMode = false;
+  bool _isLoading = true;
+  String? _idEmpleado;
 
-  // --- DATOS DEL USUARIO (Vacíos, listos para Supabase) ---
+  // --- DATOS DINÁMICOS DEL USUARIO ---
   final Map<String, String> _userData = {
-    'nombre': '',
-    'iniciales': '',
-    'rol': '',
-    'edad': '',
+    'nombre': 'Usuario',
+    'iniciales': 'US',
+    'rol': 'Cargando...',
+    'edad': '0',
     'correo': '',
-    'password': '', // La contraseña real no se trae, esto es solo visual
+    'password': '', 
   };
+
+  @override
+  void initState() {
+    super.initState();
+    _cargarDatosUsuario();
+  }
+
+  // --- OBTENER DATOS DESDE SUPABASE ---
+  Future<void> _cargarDatosUsuario() async {
+    setState(() => _isLoading = true);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      _idEmpleado = prefs.getString('id_empleado');
+
+      if (_idEmpleado != null) {
+        final List<dynamic> response = await Supabase.instance.client
+            .from('usuarios')
+            .select()
+            .eq('id_empleado', _idEmpleado!.trim());
+
+        if (response.isNotEmpty && mounted) {
+          final usuario = response.first;
+          setState(() {
+            _userData['nombre'] = usuario['nombre_completo'] ?? 'Sin Nombre';
+            _userData['rol'] = usuario['rol'] ?? 'Empleado';
+            _userData['edad'] = (usuario['edad'] ?? 0).toString();
+            _userData['correo'] = usuario['correo'] ?? '';
+            _userData['password'] = usuario['contrasena_hash'] ?? '';
+            
+            // Generar iniciales automáticamente
+            _actualizarInicialesLocal(_userData['nombre']!);
+            _isLoading = false;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint("Error cargando configuración del usuario: $e");
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  void _actualizarInicialesLocal(String nombre) {
+    List<String> palabras = nombre.trim().split(" ");
+    if (palabras.length >= 2) {
+      _userData['iniciales'] = "${palabras[0][0]}${palabras[1][0]}".toUpperCase();
+    } else if (palabras.isNotEmpty && palabras[0].isNotEmpty) {
+      _userData['iniciales'] = palabras[0][0].toUpperCase();
+    } else {
+      _userData['iniciales'] = "US";
+    }
+  }
+
+  // --- ACTUALIZAR EN SUPABASE Y LOCAL ---
+  Future<void> _actualizarDatoUsuario(String clave, String nuevoValor) async {
+    if (_idEmpleado == null) return;
+
+    // Determinar qué columna mapear en PostgreSQL
+    String columnaBd;
+    dynamic valorProcesado = nuevoValor;
+
+    switch (clave) {
+      case 'nombre':
+        columnaBd = 'nombre_completo';
+        break;
+      case 'edad':
+        columnaBd = 'edad';
+        valorProcesado = int.tryParse(nuevoValor) ?? 0;
+        break;
+      case 'correo':
+        columnaBd = 'correo';
+        break;
+      case 'password':
+        columnaBd = 'contrasena_hash';
+        break;
+      default:
+        return;
+    }
+
+    try {
+      // 1. Actualizar en Supabase
+      await Supabase.instance.client
+          .from('usuarios')
+          .update({columnaBd: valorProcesado})
+          .eq('id_empleado', _idEmpleado!.trim());
+
+      // 2. Si se actualizó el nombre completo, actualizar localmente en SharedPreferences para consistencia con el Home
+      if (clave == 'nombre') {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('nombre_completo', nuevoValor);
+      }
+
+      // 3. Actualizar la interfaz local
+      setState(() {
+        _userData[clave] = nuevoValor;
+        if (clave == 'nombre') {
+          _actualizarInicialesLocal(nuevoValor);
+        }
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Configuración actualizada con éxito.'),
+            backgroundColor: Color(0xFF2E9E8A),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint("Error actualizando usuario en base de datos: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al actualizar: $e'),
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  // --- MOSTRAR PANTALLA/DIALOGO DE EDICIÓN ---
+  void _mostrarPantallaEdicion(String clave, String titulo, String valorActual) {
+    final TextEditingController controller = TextEditingController(text: valorActual);
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          title: Text(
+            'Editar $titulo',
+            style: TextStyle(color: primaryDark, fontSize: 16, fontWeight: FontWeight.bold),
+          ),
+          content: TextField(
+            controller: controller,
+            obscureText: clave == 'password',
+            keyboardType: clave == 'edad' ? TextInputType.number : TextInputType.text,
+            decoration: InputDecoration(
+              hintText: 'Introduce el nuevo $titulo',
+              focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: primaryLight)),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text('Cancelar', style: TextStyle(color: textMuted)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: primaryLight,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              onPressed: () {
+                Navigator.pop(context);
+                _actualizarDatoUsuario(clave, controller.text.trim());
+              },
+              child: const Text('Guardar', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -87,8 +258,6 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
 
   // --- COLUMNA IZQUIERDA ---
   Widget _buildLeftColumn() {
-    bool isLoading = _userData['nombre']!.isEmpty;
-
     return Container(
       width: 260,
       color: leftColBg,
@@ -96,95 +265,119 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // TARJETA DE PERFIL
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              border: Border.all(color: borderLight, width: 0.5),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Column(
-              children: [
-                // Avatar
-                Stack(
-                  alignment: Alignment.bottomRight,
-                  children: [
-                    Container(
-                      width: 62, height: 62,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFDEEEF8),
-                        shape: BoxShape.circle,
-                        border: Border.all(color: primaryLight, width: 2.5),
-                      ),
-                      alignment: Alignment.center,
-                      child: Text(
-                        isLoading ? '-' : _userData['iniciales']!,
-                        style: TextStyle(color: primaryDark, fontSize: 22, fontWeight: FontWeight.bold),
-                      ),
+          Expanded(
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // TARJETA DE PERFIL
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      border: Border.all(color: borderLight, width: 0.5),
+                      borderRadius: BorderRadius.circular(14),
                     ),
-                    Container(
-                      padding: const EdgeInsets.all(4),
-                      decoration: BoxDecoration(color: primaryLight, shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 1.5)),
-                      child: const Icon(Icons.camera_alt, size: 10, color: Colors.white),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Text(isLoading ? 'Cargando usuario...' : _userData['nombre']!, style: TextStyle(color: primaryDark, fontSize: 14, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 4),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(color: const Color(0xFFDEEEF8), borderRadius: BorderRadius.circular(6)),
-                  child: Text(isLoading ? '...' : _userData['rol']!, style: TextStyle(color: primaryLight, fontSize: 10, fontWeight: FontWeight.bold)),
-                ),
-                const SizedBox(height: 12),
-                InkWell(
-                  onTap: () {},
-                  child: Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    decoration: BoxDecoration(color: bgLight, borderRadius: BorderRadius.circular(8)),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
+                    child: Column(
                       children: [
-                        Icon(Icons.photo, size: 14, color: primaryLight),
-                        const SizedBox(width: 6),
-                        Text('Cambiar foto de perfil', style: TextStyle(color: primaryLight, fontSize: 11, fontWeight: FontWeight.bold)),
+                        Stack(
+                          alignment: Alignment.bottomRight,
+                          children: [
+                            Container(
+                              width: 62, height: 62,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFDEEEF8),
+                                shape: BoxShape.circle,
+                                border: Border.all(color: primaryLight, width: 2.5),
+                              ),
+                              alignment: Alignment.center,
+                              child: Text(
+                                _isLoading ? '-' : _userData['iniciales']!,
+                                style: TextStyle(color: primaryDark, fontSize: 22, fontWeight: FontWeight.bold),
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.all(4),
+                              decoration: BoxDecoration(color: primaryLight, shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 1.5)),
+                              child: const Icon(Icons.camera_alt, size: 10, color: Colors.white),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          _isLoading ? 'Cargando usuario...' : _userData['nombre']!, 
+                          style: TextStyle(color: primaryDark, fontSize: 14, fontWeight: FontWeight.bold),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 4),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(color: const Color(0xFFDEEEF8), borderRadius: BorderRadius.circular(6)),
+                          child: Text(
+                            _isLoading ? '...' : _userData['rol']!, 
+                            style: TextStyle(color: primaryLight, fontSize: 10, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        InkWell(
+                          onTap: () => _mostrarPantallaEdicion('nombre', 'Nombre de Usuario', _userData['nombre']!),
+                          child: Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            decoration: BoxDecoration(color: bgLight, borderRadius: BorderRadius.circular(8)),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.photo, size: 14, color: primaryLight),
+                                const SizedBox(width: 6),
+                                Text('Cambiar foto de perfil', style: TextStyle(color: primaryLight, fontSize: 11, fontWeight: FontWeight.bold)),
+                              ],
+                            ),
+                          ),
+                        ),
                       ],
                     ),
                   ),
-                ),
-              ],
+                  const SizedBox(height: 24),
+                  
+                  // NAVEGACIÓN
+                  Text('SECCIONES', style: TextStyle(color: textMuted, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.0)),
+                  const SizedBox(height: 8),
+                  Container(
+                    decoration: BoxDecoration(
+                      border: Border.all(color: borderLight, width: 0.5),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Column(
+                      children: [
+                        _buildNavItem(0, Icons.settings, 'General', const Color(0xFF65ABDE)),
+                        Divider(height: 1, color: borderLight.withOpacity(0.5)),
+                        _buildNavItem(1, Icons.person, 'Cuenta', const Color(0xFF4A87B4)),
+                        Divider(height: 1, color: borderLight.withOpacity(0.5)),
+                        _buildNavItem(2, Icons.palette, 'Apariencia', const Color(0xFF294E69)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
-          const SizedBox(height: 24),
           
-          // NAVEGACIÓN
-          Text('SECCIONES', style: TextStyle(color: textMuted, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.0)),
-          const SizedBox(height: 8),
-          Container(
-            decoration: BoxDecoration(
-              border: Border.all(color: borderLight, width: 0.5),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Column(
-              children: [
-                _buildNavItem(0, Icons.settings, 'General', const Color(0xFF65ABDE)),
-                Divider(height: 1, color: borderLight.withOpacity(0.5)),
-                _buildNavItem(1, Icons.person, 'Cuenta', const Color(0xFF4A87B4)),
-                Divider(height: 1, color: borderLight.withOpacity(0.5)),
-                _buildNavItem(2, Icons.palette, 'Apariencia', const Color(0xFF294E69)),
-              ],
-            ),
-          ),
+          const SizedBox(height: 16),
           
-          const Spacer(),
-          
-          // BOTÓN CERRAR SESIÓN
+          // BOTÓN CERRAR SESIÓN (Navegación Directa)
           InkWell(
-            onTap: () {
-              // Lógica de Supabase Auth SignOut
+            onTap: () async {
+              final prefs = await SharedPreferences.getInstance();
+              await prefs.clear(); // Limpia los datos guardados en el dispositivo[cite: 3]
+              
+              if (mounted) {
+                // Navega directamente a la LoginPantalla y elimina todo el historial previo
+                Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(builder: (context) => const LoginPantalla()),
+                  (route) => false,
+                );
+              }
             },
             borderRadius: BorderRadius.circular(12),
             child: Container(
@@ -194,12 +387,12 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
                 border: Border.all(color: const Color(0xFFF09595), width: 0.5),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: Row(
+              child: const Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.logout, size: 16, color: Color(0xFFA32D2D)),
-                  const SizedBox(width: 8),
-                  const Text('Cerrar sesión', style: TextStyle(color: Color(0xFFA32D2D), fontSize: 12, fontWeight: FontWeight.bold)),
+                  Icon(Icons.logout, size: 16, color: Color(0xFFA32D2D)),
+                  SizedBox(width: 8),
+                  Text('Cerrar sesión', style: TextStyle(color: Color(0xFFA32D2D), fontSize: 12, fontWeight: FontWeight.bold)),
                 ],
               ),
             ),
@@ -234,7 +427,11 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
 
   // --- COLUMNA DERECHA ---
   Widget _buildRightColumn() {
-    bool isLoading = _userData['nombre']!.isEmpty;
+    if (_isLoading) {
+      return Center(
+        child: CircularProgressIndicator(color: primaryLight),
+      );
+    }
 
     return ListView(
       padding: const EdgeInsets.all(24),
@@ -246,13 +443,13 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
           decoration: BoxDecoration(border: Border.all(color: borderLight, width: 0.5), borderRadius: BorderRadius.circular(12)),
           child: Column(
             children: [
-              _buildSettingRow(Icons.person, const Color(0xFF65ABDE), 'Nombre', isLoading ? '-' : _userData['nombre']!),
+              _buildSettingRow('nombre', Icons.person, const Color(0xFF65ABDE), 'Nombre', _userData['nombre']!),
               Divider(height: 1, color: borderLight.withOpacity(0.5)),
-              _buildSettingRow(Icons.cake, const Color(0xFF4A87B4), 'Edad', isLoading ? '-' : '${_userData['edad']} años'),
+              _buildSettingRow('edad', Icons.cake, const Color(0xFF4A87B4), 'Edad', '${_userData['edad']} años'),
               Divider(height: 1, color: borderLight.withOpacity(0.5)),
-              _buildSettingRow(Icons.mail, const Color(0xFF4A87B4), 'Correo electrónico', isLoading ? '-' : _userData['correo']!),
+              _buildSettingRow('correo', Icons.mail, const Color(0xFF4A87B4), 'Correo electrónico', _userData['correo']!),
               Divider(height: 1, color: borderLight.withOpacity(0.5)),
-              _buildSettingRow(Icons.lock, const Color(0xFF294E69), 'Contraseña', '••••••••', isSecure: true),
+              _buildSettingRow('password', Icons.lock, const Color(0xFF294E69), 'Contraseña', '••••••••', isSecure: true),
             ],
           ),
         ),
@@ -265,7 +462,7 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
           decoration: BoxDecoration(border: Border.all(color: borderLight, width: 0.5), borderRadius: BorderRadius.circular(12)),
           child: Column(
             children: [
-              _buildSettingRow(Icons.calendar_month, const Color(0xFFADCBE3), 'Fecha del dispositivo', '24 de junio, 2026', showEdit: false),
+              _buildSettingRow('', Icons.calendar_month, const Color(0xFFADCBE3), 'Fecha del dispositivo', '14 de julio, 2026', showEdit: false),
               Divider(height: 1, color: borderLight.withOpacity(0.5)),
               _buildThemeToggleRow(),
             ],
@@ -275,7 +472,7 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
     );
   }
 
-  Widget _buildSettingRow(IconData icon, Color color, String label, String value, {bool isSecure = false, bool showEdit = true}) {
+  Widget _buildSettingRow(String clave, IconData icon, Color color, String label, String value, {bool isSecure = false, bool showEdit = true}) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: const BoxDecoration(color: Colors.white),
@@ -307,7 +504,7 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
           ),
           if (showEdit)
             InkWell(
-              onTap: () {},
+              onTap: () => _mostrarPantallaEdicion(clave, label, _userData[clave]!),
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 decoration: BoxDecoration(color: bgLight, borderRadius: BorderRadius.circular(6)),

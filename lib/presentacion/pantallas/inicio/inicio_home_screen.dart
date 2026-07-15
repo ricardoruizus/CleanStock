@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../alertas/alertas.dart'; 
 import '../ventas/ventas.dart';
 import '../configuracion/configuracion.dart';
@@ -44,6 +46,9 @@ class _CleanStockHomeScreenState extends State<CleanStockHomeScreen> {
   int _activeNavIndex = 0; 
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = "";
+  
+  // Variable para almacenar el nombre dinámico del usuario
+  String _nombreUsuario = "Usuario"; 
 
   final List<DashboardCardData> _allCards = [
     const DashboardCardData(
@@ -83,6 +88,35 @@ class _CleanStockHomeScreenState extends State<CleanStockHomeScreen> {
       subIcons: [Icons.edit_note_rounded, Icons.list_alt_rounded, Icons.done_all_rounded],
     ),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _cargarDatosUsuario(); // Carga el nombre al iniciar la pantalla
+  }
+
+  Future<void> _cargarDatosUsuario() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final String? idEmpleado = prefs.getString('id_empleado');
+
+      if (idEmpleado != null) {
+        // Consultamos el nombre del usuario directamente en la base de datos
+        final List<dynamic> response = await Supabase.instance.client
+            .from('usuarios')
+            .select('nombre_completo')
+            .eq('id_empleado', idEmpleado);
+
+        if (response.isNotEmpty && mounted) {
+          setState(() {
+            _nombreUsuario = response.first['nombre_completo'];
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint("Error al cargar datos del usuario: $e");
+    }
+  }
 
   @override
   void dispose() {
@@ -168,23 +202,10 @@ class _CleanStockHomeScreenState extends State<CleanStockHomeScreen> {
   Widget _buildMainContent(List<DashboardCardData> filteredCards, {required bool isTablet}) {
     switch (_activeNavIndex) {
       case 0: return _buildGridCards(filteredCards, isTablet: isTablet);
-      case 1: return const AlertasScreen();;
+      case 1: return const AlertasScreen();
       case 2: return const ConfiguracionScreen();
       default: return _buildGridCards(filteredCards, isTablet: isTablet);
     }
-  }
-
-  Widget _buildConfigView() {
-    return const Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.settings_outlined, size: 64, color: Color(0xFF64748B)),
-          SizedBox(height: 12),
-          Text('Configuración del Sistema', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Color(0xFF64748B))),
-        ],
-      ),
-    );
   }
 
   Widget _buildHeaderRow(BuildContext context) {
@@ -196,7 +217,8 @@ class _CleanStockHomeScreenState extends State<CleanStockHomeScreen> {
           children: [
             Text(_getAppBarTitle(), style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Color(0xFF1E293B))),
             const SizedBox(height: 4),
-            const Text('Bienvenido, Alex · CleanStock v2.0', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Color(0xFF64748B))),
+            // REEMPLAZADO: Texto estático por la variable dinámica
+            Text('Bienvenido, $_nombreUsuario · CleanStock v2.0', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Color(0xFF64748B))),
           ],
         ),
         if (_activeNavIndex == 0) SizedBox(width: 300, child: _buildSearchField()),
@@ -308,11 +330,22 @@ class _CleanStockHomeScreenState extends State<CleanStockHomeScreen> {
   }
 
   Widget _buildUserAvatar() {
+    // Genera las iniciales a partir del nombre del usuario de Supabase
+    String iniciales = "US";
+    if (_nombreUsuario.trim().isNotEmpty && _nombreUsuario != "Usuario") {
+      List<String> palabras = _nombreUsuario.trim().split(" ");
+      if (palabras.length >= 2) {
+        iniciales = "${palabras[0][0]}${palabras[1][0]}".toUpperCase();
+      } else if (palabras.isNotEmpty) {
+        iniciales = palabras[0][0].toUpperCase();
+      }
+    }
+
     return Container(
       width: 44,
       height: 44,
       decoration: BoxDecoration(color: primaryLightColor, shape: BoxShape.circle, border: Border.all(color: primaryColor.withOpacity(0.2), width: 1.5)),
-      child: const Center(child: Text('AM', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: primaryColor))),
+      child: Center(child: Text(iniciales, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: primaryColor))),
     );
   }
 
@@ -430,7 +463,8 @@ class _CleanStockHomeScreenState extends State<CleanStockHomeScreen> {
       children: [
         Text(_getAppBarTitle(), style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFF1E293B))),
         const SizedBox(height: 2),
-        const Text('Bienvenido, Alex · v2.0', style: TextStyle(fontSize: 13, color: Color(0xFF64748B))),
+        // REEMPLAZADO: Nombre estático en vista móvil por variable dinámica
+        Text('Bienvenido, $_nombreUsuario · v2.0', style: const TextStyle(fontSize: 13, color: Color(0xFF64748B))),
       ],
     );
   }
@@ -449,10 +483,9 @@ class _CleanStockHomeScreenState extends State<CleanStockHomeScreen> {
     );
   }
 
-void _onCardPressed(BuildContext context, DashboardCardData card) {
+  void _onCardPressed(BuildContext context, DashboardCardData card) {
     Widget pantallaDestino;
 
-    // Evaluamos el 'id' de la tarjeta que se presionó
     switch (card.id) {
       case 'ventas':
         pantallaDestino = const VentasScreen();
@@ -468,7 +501,6 @@ void _onCardPressed(BuildContext context, DashboardCardData card) {
         break;
       
       default:
-        // Si la pantalla aún no está creada, mostramos un mensaje temporal
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Módulo "${card.title}" en construcción.'),
@@ -476,10 +508,9 @@ void _onCardPressed(BuildContext context, DashboardCardData card) {
             behavior: SnackBarBehavior.floating,
           ),
         );
-        return; // Salimos de la función sin navegar
+        return;
     }
 
-    // Navegamos a la pantalla seleccionada
     Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => pantallaDestino),
