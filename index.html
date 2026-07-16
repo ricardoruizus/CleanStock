@@ -306,7 +306,7 @@
             </div>
             <div class="employee-info">
                 <h2 class="employee-name" id="emp-name">Cargando empleado...</h2>
-                <span class="employee-email" id="emp-email">Inicia sesión para ver tu correo</span>
+                <span class="employee-email" id="emp-email">Buscando información en el sistema...</span>
                 <div class="id-badge-container">
                     <span>ID EMPLEADO:</span>
                     <span class="id-badge" id="emp-id">EMP-TEMP</span>
@@ -350,7 +350,7 @@
 
     <script>
         // --- 1. CONFIGURACIÓN DE SUPABASE ---
-        // Reemplaza estos valores con las credenciales de tu proyecto de Supabase
+        // Asegúrate de reemplazar estas credenciales por las reales de tu proyecto
         const SUPABASE_URL = 'https://TU_PROYECTO.supabase.co';
         const SUPABASE_ANON_KEY = 'TU_ANON_KEY';
         
@@ -362,23 +362,49 @@
             const urlParams = new URLSearchParams(window.location.search);
             const idDesdeUrl = urlParams.get('id');
 
+            let idEmpleadoFinal = null;
+
             if (idDesdeUrl) {
-                document.getElementById('emp-id').innerText = idDesdeUrl;
+                idEmpleadoFinal = idDesdeUrl;
+                document.getElementById('emp-id').innerText = idEmpleadoFinal;
             }
 
-            // Validar si hay un usuario logueado en Supabase
-            const { data: { user } } = await supabase.auth.getUser();
+            try {
+                // Validar si hay un usuario logueado en Supabase Auth
+                const { data: { user } } = await supabase.auth.getUser();
 
-            if (user) {
-                document.getElementById('emp-name').innerText = user.user_metadata.nombre || 'Empleado Activo';
-                document.getElementById('emp-email').innerText = user.email;
-                
-                // Si el ID no viene en la URL, intentar tomarlo de la metadata del auth
-                if (!idDesdeUrl && user.user_metadata.id_empleado) {
-                    document.getElementById('emp-id').innerText = user.user_metadata.id_empleado;
+                if (user) {
+                    // Si el ID no venía en la URL, intentar tomarlo de la metadata del auth
+                    if (!idEmpleadoFinal && user.user_metadata?.id_empleado) {
+                        idEmpleadoFinal = user.user_metadata.id_empleado;
+                        document.getElementById('emp-id').innerText = idEmpleadoFinal;
+                    }
                 }
-            } else {
-                document.getElementById('emp-name').innerText = "Invitado / No logueado";
+
+                // Si logramos capturar un ID de empleado válido, buscamos su información en la base de datos
+                if (idEmpleadoFinal) {
+                    const { data: usuarioDb, error: dbError } = await supabase
+                        .from('usuarios')
+                        .select('nombre_completo, correo')
+                        .eq('id_empleado', idEmpleadoFinal)
+                        .single();
+
+                    if (usuarioDb && !dbError) {
+                        document.getElementById('emp-name').innerText = usuarioDb.nombre_completo;
+                        document.getElementById('emp-email').innerText = usuarioDb.correo;
+                    } else {
+                        document.getElementById('emp-name').innerText = "Empleado no encontrado";
+                        document.getElementById('emp-email').innerText = "El ID de empleado no es válido o no existe";
+                    }
+                } else {
+                    document.getElementById('emp-name').innerText = "Acceso sin identificar";
+                    document.getElementById('emp-email').innerText = "Falta el ID del empleado en la dirección URL";
+                }
+
+            } catch (err) {
+                console.error("Error al procesar la carga:", err);
+                document.getElementById('emp-name').innerText = "Error de conexión";
+                document.getElementById('emp-email').innerText = "No se pudo conectar al servidor de datos";
             }
         });
 
@@ -389,10 +415,17 @@
             const password = document.getElementById('new-password').value;
             const confirmPassword = document.getElementById('confirm-password').value;
             const btnSubmit = document.getElementById('btn-submit');
+            const idEmpleado = document.getElementById('emp-id').innerText;
 
-            // Validar coincidencia
+            // Validar coincidencia de campos
             if (password !== confirmPassword) {
                 showToast('Las contraseñas no coinciden', 'var(--danger)');
+                return;
+            }
+
+            // Validar que no se intente actualizar con el ID temporal por defecto
+            if (idEmpleado === 'EMP-TEMP' || !idEmpleado) {
+                showToast('ID de empleado no válido para la actualización', 'var(--danger)');
                 return;
             }
 
@@ -401,7 +434,12 @@
             btnSubmit.innerHTML = `<div class="spinner"></div> <span>Actualizando...</span>`;
 
             try {
-                const { error } = await supabase.auth.updateUser({ password: password });
+                // Actualizamos la columna correspondiente del usuario en tu tabla 'usuarios'
+                // NOTA: Reemplaza 'contrasena_hash' por el nombre de tu columna de contraseñas en Supabase
+                const { error } = await supabase
+                    .from('usuarios')
+                    .update({ contrasena_hash: password }) 
+                    .eq('id_empleado', idEmpleado);
 
                 if (error) throw error;
 
