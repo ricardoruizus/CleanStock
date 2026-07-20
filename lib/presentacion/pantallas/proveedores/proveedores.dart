@@ -296,7 +296,7 @@ class _ProveedoresScreenState extends State<ProveedoresScreen> {
             onPressed: () async {
               final resultado = await Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => const AgregarProveedorScreen()),
+                MaterialPageRoute(builder: (context) => const ProveedorFormScreen()),
               );
               if (resultado == true) {
                 _cargarDatos();
@@ -406,7 +406,7 @@ class _ProveedoresScreenState extends State<ProveedoresScreen> {
             child: Row(
               children: [
                 Expanded(flex: 20, child: _thText('CATEGORÍA / PROVEEDOR', color: borderLight)),
-                Expanded(flex: 14, child: _thText('CONTACTO', color: borderLight)),
+                Expanded(flex: 14, child: _thText('PROVEEDOR', color: borderLight)),
                 Expanded(flex: 14, child: _thText('TELÉFONO', color: borderLight)),
                 Expanded(flex: 10, child: _thText('ESTADO', color: borderLight, align: TextAlign.center)),
                 const SizedBox(width: 80, child: Text('DETALLE', textAlign: TextAlign.center, style: TextStyle(color: Color(0xFFADCBE3), fontSize: 9, fontWeight: FontWeight.bold, letterSpacing: 0.5))),
@@ -619,15 +619,15 @@ class _ProveedoresScreenState extends State<ProveedoresScreen> {
               child: const Text('Eliminar', style: TextStyle(color: Colors.red)),
             ),
             TextButton(
-              onPressed: () {
-                final nuevoEstado = prov['estado'] == 'Activo' ? 'Revisión' : 'Activo';
+              onPressed: () async {
                 Navigator.pop(context);
-                _actualizarEstado(prov['id'], nuevoEstado);
+                final recargar = await Navigator.push<bool>(
+                  context,
+                  MaterialPageRoute(builder: (context) => ProveedorFormScreen(proveedorAEditar: prov)),
+                );
+                if (recargar == true) _cargarProveedores();
               },
-              child: Text(
-                prov['estado'] == 'Activo' ? 'Marcar en Revisión' : 'Marcar como Activo',
-                style: TextStyle(color: primaryLight, fontWeight: FontWeight.bold),
-              ),
+              child: const Text('Editar', style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold)),
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(backgroundColor: primaryDark),

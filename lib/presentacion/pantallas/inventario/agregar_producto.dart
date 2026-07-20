@@ -18,6 +18,7 @@ class _AgregarProductoScreenState extends State<AgregarProductoScreen> {
 
   final _formKey = GlobalKey<FormState>();
   final _nombreController = TextEditingController();
+  final _skuController = TextEditingController(); // NUEVO
   final _precioController = TextEditingController();
   final _stockController = TextEditingController();
 
@@ -26,6 +27,7 @@ class _AgregarProductoScreenState extends State<AgregarProductoScreen> {
   @override
   void dispose() {
     _nombreController.dispose();
+    _skuController.dispose();
     _precioController.dispose();
     _stockController.dispose();
     super.dispose();
@@ -42,12 +44,14 @@ class _AgregarProductoScreenState extends State<AgregarProductoScreen> {
 
     try {
       final String nombre = _nombreController.text.trim();
+      final String sku = _skuController.text.trim(); // NUEVO
       final double precio = double.parse(_precioController.text.trim());
       final int stock = int.parse(_stockController.text.trim());
 
       // 2. Insertar en tu tabla de Supabase (asegúrate de que los nombres de columna coincidan)
       await Supabase.instance.client.from('productos').insert({
         'nombre': nombre,
+        'sku': sku, // NUEVO
         'precio': precio,
         'stock': stock,
         // Si tu tabla requiere campos extra como 'creado_en', Supabase suele generarlos por defecto.
@@ -108,6 +112,18 @@ class _AgregarProductoScreenState extends State<AgregarProductoScreen> {
                 validator: (value) {
                   if (value == null || value.trim().isEmpty) {
                     return 'Por favor ingresa el nombre';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 16),
+              // Campo: SKU
+              _buildTextField(
+                label: 'SKU',
+                controller: _skuController,
+                validator: (value) {
+                  if (value == null || value.trim().isEmpty) {
+                    return 'Por favor ingresa el SKU';
                   }
                   return null;
                 },

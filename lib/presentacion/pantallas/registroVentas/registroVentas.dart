@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../ventas/ventas.dart';
 
 class RegistroVentasScreen extends StatefulWidget {
   const RegistroVentasScreen({super.key});
@@ -76,39 +77,6 @@ class _RegistroVentasScreenState extends State<RegistroVentasScreen> {
     }
   }
 
-  // [CREATE] Registrar una venta de prueba (Venta + Detalle)
-  Future<void> _crearVentaDePrueba() async {
-    setState(() => _isLoading = true);
-    try {
-      final prodResponse = await _supabase.from('productos').select().limit(1);
-      if (prodResponse.isEmpty) {
-        _mostrarSnack('Primero agrega productos en tu pantalla de Inventario', Colors.orange);
-        return;
-      }
-      final producto = prodResponse.first;
-
-      final nuevaVenta = await _supabase.from('ventas').insert({
-        'folio': 'F-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}',
-        'estado': 'Completado',
-        'total': (producto['precio'] as num).toDouble() * 2,
-      }).select().single();
-
-      await _supabase.from('venta_detalles').insert({
-        'venta_id': nuevaVenta['id'],
-        'producto_id': producto['id'],
-        'cantidad': 2,
-        'precio_unitario': (producto['precio'] as num).toDouble(),
-      });
-
-      _mostrarSnack('Venta de prueba registrada con éxito', const Color(0xFF2E9E8A));
-      _cargarVentas();
-    } catch (e) {
-      _mostrarSnack('Error al registrar venta: $e', Colors.redAccent);
-    } finally {
-      setState(() => _isLoading = false);
-    }
-  }
-
   // [UPDATE] Cambiar el estado de una venta (Completado / Pendiente / Cancelado)
   Future<void> _cambiarEstadoVenta(int ventaId, String nuevoEstado) async {
     try {
@@ -177,10 +145,15 @@ class _RegistroVentasScreenState extends State<RegistroVentasScreen> {
       // --- CORRECCIÓN DE FECHA (CONVERSIÓN A HORA LOCAL) ---
       String fechaRaw = venta['fecha_venta'] ?? '';
       String fechaStr = 'S/F';
+      DateTime? fechaLocal;
       
       if (fechaRaw.isNotEmpty) {
-        final DateTime fechaLocal = DateTime.parse(fechaRaw).toLocal();
-        fechaStr = fechaLocal.toString().substring(0, 10);
+        String fechaParseable = fechaRaw;
+        if (!fechaParseable.endsWith('Z') && !fechaParseable.contains('+') && !fechaParseable.contains('-')) {
+          fechaParseable = '${fechaParseable.replaceFirst(' ', 'T')}Z';
+        }
+        fechaLocal = DateTime.parse(fechaParseable).toLocal();
+        fechaStr = "${fechaLocal.toString().substring(0, 10)} ${fechaLocal.toString().substring(11, 16)}";
       }
 
       // --- FILTRO DE BÚSQUEDA ---
@@ -196,22 +169,20 @@ class _RegistroVentasScreenState extends State<RegistroVentasScreen> {
       if (_filtroActivo == 3 && estado != 'Cancelado') continue;
 
       // --- FILTRO DE TIEMPO (YA USA LA FECHA LOCAL CORRECTA) ---
-      if (fechaRaw.isNotEmpty) {
-        final DateTime fechaVenta = DateTime.parse(fechaRaw).toLocal();
-
+      if (fechaLocal != null) {
         if (_filtroTiempoActivo == 1) { // HOY
-          if (fechaVenta.year != ahora.year || 
-              fechaVenta.month != ahora.month || 
-              fechaVenta.day != ahora.day) {
+          if (fechaLocal.year != ahora.year || 
+              fechaLocal.month != ahora.month || 
+              fechaLocal.day != ahora.day) {
             continue;
           }
         } else if (_filtroTiempoActivo == 2) { // ESTA SEMANA (Últimos 7 días)
-          final diferenciaDias = ahora.difference(fechaVenta).inDays;
+          final diferenciaDias = ahora.difference(fechaLocal).inDays;
           if (diferenciaDias < 0 || diferenciaDias > 7) {
             continue;
           }
         } else if (_filtroTiempoActivo == 3) { // ESTE MES
-          if (fechaVenta.year != ahora.year || fechaVenta.month != ahora.month) {
+          if (fechaLocal.year != ahora.year || fechaLocal.month != ahora.month) {
             continue;
           }
         }
@@ -290,19 +261,6 @@ class _RegistroVentasScreenState extends State<RegistroVentasScreen> {
           icon: Icon(Icons.refresh, color: primaryLight), 
           onPressed: _cargarVentas,
         ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
-          child: ElevatedButton.icon(
-            onPressed: _crearVentaDePrueba,
-            icon: const Icon(Icons.add, size: 16, color: Colors.white),
-            label: const Text('Nueva venta', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: primaryLight,
-              elevation: 0,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            ),
-          ),
-        ),
       ],
     );
   }
@@ -348,8 +306,6 @@ class _RegistroVentasScreenState extends State<RegistroVentasScreen> {
                   _buildFiltroPill('Todos', 0),
                   const SizedBox(width: 6),
                   _buildFiltroPill('Completados', 1),
-                  const SizedBox(width: 6),
-                  _buildFiltroPill('Pendientes', 2),
                   const SizedBox(width: 6),
                   _buildFiltroPill('Cancelados', 3),
                 ],

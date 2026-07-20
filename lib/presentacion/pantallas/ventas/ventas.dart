@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'barcode_scanner_screen.dart';
+import '../../../servicios/ticket_servicio.dart';
 
 class VentasScreen extends StatefulWidget {
   const VentasScreen({super.key});
@@ -38,7 +40,7 @@ class _VentasScreenState extends State<VentasScreen> {
     try {
       final data = await _supabase
           .from('productos')
-          .select('id, nombre, precio, stock');
+          .select('id, nombre, precio, stock, sku'); // INCLUIR SKU
       
       setState(() {
         _catalogo = List<Map<String, dynamic>>.from(data);
@@ -59,7 +61,7 @@ class _VentasScreenState extends State<VentasScreen> {
           _codigoInput = _codigoInput.substring(0, _codigoInput.length - 1);
         }
       } else if (tecla == 'add') {
-        _buscarYAgregarPorCodigo(_codigoInput);
+        _buscarYAgregarPorSKU(_codigoInput); // CAMBIO: Usar SKU
       } else {
         _codigoInput += tecla;
       }
@@ -69,21 +71,20 @@ class _VentasScreenState extends State<VentasScreen> {
   List<Map<String, dynamic>> _obtenerSugerencias() {
     if (_codigoInput.isEmpty) return [];
     return _catalogo.where((producto) {
-      final idStr = producto['id'].toString();
-      return idStr.contains(_codigoInput) ||
+      final skuStr = (producto['sku'] ?? '').toString(); // CAMBIO
+      return skuStr.toLowerCase().contains(_codigoInput.toLowerCase()) || // CAMBIO
              producto['nombre']!.toLowerCase().contains(_codigoInput.toLowerCase());
     }).toList();
   }
 
-  void _buscarYAgregarPorCodigo(String codigo) {
-    final idBuscado = int.tryParse(codigo);
-    final productoIndex = _catalogo.indexWhere((item) => item['id'] == idBuscado);
+  void _buscarYAgregarPorSKU(String sku) {
+    final productoIndex = _catalogo.indexWhere((item) => (item['sku'] ?? '').toString().toLowerCase() == sku.toLowerCase()); // CAMBIO
 
     if (productoIndex != -1) {
       _agregarAlTicket(_catalogo[productoIndex]);
       _codigoInput = "";
     } else {
-      _mostrarSnack('Código de producto no encontrado.', Colors.red);
+      _mostrarSnack('SKU de producto no encontrado.', Colors.red);
     }
   }
 
@@ -101,6 +102,7 @@ class _VentasScreenState extends State<VentasScreen> {
         if (producto['stock'] > 0) {
           _ticket.add({
             'id': producto['id'],
+            'sku': producto['sku'],
             'nombre': producto['nombre'],
             'precio': (producto['precio'] as num).toDouble(),
             'cantidad': 1,
@@ -119,6 +121,26 @@ class _VentasScreenState extends State<VentasScreen> {
     });
   }
 
+  void _duplicarProducto(int index) {
+    setState(() {
+      final item = _ticket[index];
+      if (item['cantidad'] < item['stock']) {
+        item['cantidad'] += 1;
+      } else {
+        _mostrarSnack('No puedes agregar más de este producto. Stock límite alcanzado.', Colors.orange);
+      }
+    });
+  }
+
+  void _reducirProducto(int index) {
+    setState(() {
+      final item = _ticket[index];
+      if (item['cantidad'] >= 2) {
+        item['cantidad'] -= 1;
+      }
+    });
+  }
+
   // --- CONFIRMAR VENTA (GUARDADO REAL EN BASE DE DATOS) ---
   Future<void> _confirmarVenta() async {
     if (_ticket.isEmpty) {
@@ -126,17 +148,31 @@ class _VentasScreenState extends State<VentasScreen> {
       return;
     }
 
+    // Preguntar por el ticket
+    final bool? generarTicket = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('¿Generar Ticket?'),
+        content: const Text('¿Deseas generar el ticket de compra y compartirlo?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('No')),
+          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Sí')),
+        ],
+      ),
+    );
+
     setState(() => _isLoadingCatalog = true);
 
     try {
       final double totalVenta = _ticket.fold(0.0, (sum, item) => sum + (item['precio'] * item['cantidad']));
       final String folioUnico = 'V-${DateTime.now().millisecondsSinceEpoch.toString().substring(5)}';
 
-      // 1. Insertar la venta cabecera (Maestro) en 'ventas'[cite: 3]
+      // 1. Insertar la venta cabecera (Maestro) en 'ventas'
       final nuevaVenta = await _supabase.from('ventas').insert({
         'folio': folioUnico,
         'total': totalVenta,
         'estado': 'Completado',
+        'fecha_venta': DateTime.now().toIso8601String(), // Enviamos la hora exacta del dispositivo
       }).select().single();
 
       final int ventaId = nuevaVenta['id'];
@@ -156,6 +192,11 @@ class _VentasScreenState extends State<VentasScreen> {
           'p_id': item['id'],
           'p_cantidad': item['cantidad']
         });
+      }
+
+      // Generar ticket si el usuario aceptó
+      if (generarTicket == true) {
+        await TicketServicio.generarYCompartirTicket(_ticket, totalVenta, folioUnico);
       }
 
       _mostrarSnack('¡Venta $folioUnico registrada con éxito!', const Color(0xFF2E9E8A));
@@ -191,42 +232,96 @@ class _VentasScreenState extends State<VentasScreen> {
       appBar: _buildAppBar(),
       body: _isLoadingCatalog 
           ? const Center(child: CircularProgressIndicator())
-          : Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // PANEL IZQUIERDO (Búsqueda, Sugerencias y Teclado)[cite: 2]
-                Container(
-                  width: 290, 
-                  color: leftPanelBg,
-                  padding: const EdgeInsets.all(12.0),
-                  child: Column(
+          : LayoutBuilder(
+              builder: (context, constraints) {
+                // Consideramos horizontal si el ancho es significativamente mayor a la altura
+                bool isHorizontal = constraints.maxWidth > constraints.maxHeight;
+
+                if (isHorizontal) {
+                  // --- DISEÑO HORIZONTAL (3 PARTES) ---
+                  return Row(
+                    children: [
+                      // PARTE 1: TECLADO
+                      Container(
+                        width: 200,
+                        color: leftPanelBg,
+                        padding: const EdgeInsets.all(8.0),
+                        child: _buildNumpad(isMobile: false),
+                      ),
+                      Container(width: 0.5, color: borderLight),
+
+                      // PARTE 2: SUGERENCIAS
+                      Expanded(
+                        flex: 1,
+                        child: Container(
+                          color: Colors.white,
+                          padding: const EdgeInsets.all(8.0),
+                          child: Column(
+                            children: [
+                              _buildDisplayCodigo(),
+                              const SizedBox(height: 8),
+                              Expanded(child: _buildPanelSugerencias()),
+                            ],
+                          ),
+                        ),
+                      ),
+                      Container(width: 0.5, color: borderLight),
+
+                      // PARTE 3: TICKET
+                      Expanded(
+                        flex: 2,
+                        child: Container(
+                          color: bgLight,
+                          child: Column(
+                            children: [
+                              _buildCabeceraTabla(),
+                              Expanded(child: _buildCuerpoTabla()),
+                              _buildPieTabla(),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                } else {
+                  // --- DISEÑO VERTICAL (ORIGINAL FUNCIONAL) ---
+                  return Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      _buildDisplayCodigo(), 
-                      const SizedBox(height: 10),
-                      Expanded(child: _buildPanelSugerencias()), 
-                      const SizedBox(height: 10),
-                      _buildNumpad(), 
-                    ],
-                  ),
-                ),
-                
-                Container(width: 0.5, color: borderLight),
+                      // PANEL IZQUIERDO (Búsqueda + Teclado)
+                      Container(
+                        color: leftPanelBg,
+                        padding: const EdgeInsets.all(12.0),
+                        child: Column(
+                          children: [
+                            _buildDisplayCodigo(), 
+                            const SizedBox(height: 10),
+                            SizedBox(height: 180, child: _buildPanelSugerencias()), 
+                            const SizedBox(height: 10),
+                            _buildNumpad(isMobile: true), 
+                          ],
+                        ),
+                      ),
+                      
+                      Container(height: 0.5, color: borderLight),
 
-                // PANEL DERECHO (Ticket)[cite: 2]
-                Expanded(
-                  child: Container(
-                    color: bgLight,
-                    child: Column(
-                      children: [
-                        _buildCabeceraTabla(),
-                        Expanded(child: _buildCuerpoTabla()),
-                        _buildPieTabla(),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
+                      // PANEL DERECHO (Ticket)
+                      Expanded(
+                        child: Container(
+                          color: bgLight,
+                          child: Column(
+                            children: [
+                              _buildCabeceraTabla(),
+                              Expanded(child: _buildCuerpoTabla()),
+                              _buildPieTabla(),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                }
+              },
             ),
     );
   }
@@ -255,7 +350,6 @@ class _VentasScreenState extends State<VentasScreen> {
         ],
       ),
       actions: [
-        IconButton(icon: Icon(Icons.refresh, color: primaryLight), onPressed: _cargarCatalogoProductos),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 10.0),
           child: ElevatedButton.icon(
@@ -283,11 +377,10 @@ class _VentasScreenState extends State<VentasScreen> {
       ),
       child: Row(
         children: [
-          Icon(Icons.qr_code_scanner, size: 16, color: primaryLight),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-              _codigoInput.isEmpty ? 'Escribe o escanea código...' : _codigoInput,
+              _codigoInput.isEmpty ? 'Ingrese el SKU' : _codigoInput,
               style: TextStyle(
                 color: _codigoInput.isEmpty ? textMuted : primaryDark,
                 fontSize: 13,
@@ -348,7 +441,7 @@ class _VentasScreenState extends State<VentasScreen> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(prod['nombre'], style: TextStyle(color: primaryDark, fontSize: 11, fontWeight: FontWeight.w500), overflow: TextOverflow.ellipsis),
-                                  Text('ID: ${prod['id']} - Stock: ${prod['stock']}', style: TextStyle(color: textMuted, fontSize: 9)),
+                                  Text('SKU: ${prod['sku']} - Stock: ${prod['stock']}', style: TextStyle(color: textMuted, fontSize: 9)),
                                 ],
                               ),
                             ),
@@ -364,12 +457,12 @@ class _VentasScreenState extends State<VentasScreen> {
     );
   }
 
-  Widget _buildNumpad() {
+  Widget _buildNumpad({bool isMobile = false}) {
     return GridView.count(
       crossAxisCount: 3,
-      crossAxisSpacing: 6,
-      mainAxisSpacing: 6,
-      childAspectRatio: 1.5,
+      crossAxisSpacing: 4,
+      mainAxisSpacing: 4,
+      childAspectRatio: isMobile ? 2.0 : 1.2, 
       shrinkWrap: true, 
       physics: const NeverScrollableScrollPhysics(),
       children: [
@@ -429,7 +522,7 @@ class _VentasScreenState extends State<VentasScreen> {
           child: Row(
             children: [
               Expanded(flex: 4, child: _thText('PRODUCTO')),
-              Expanded(flex: 1, child: _thText('CANT.', align: TextAlign.center)),
+              Expanded(flex: 2, child: _thText('CANT.', align: TextAlign.center)),
               Expanded(flex: 2, child: _thText('PRECIO', align: TextAlign.right)),
               Expanded(flex: 2, child: _thText('TOTAL', align: TextAlign.right)),
               const SizedBox(width: 32),
@@ -463,22 +556,19 @@ class _VentasScreenState extends State<VentasScreen> {
       itemCount: _ticket.length,
       itemBuilder: (context, index) {
         var item = _ticket[index];
-        double totalFila = item['precio'] * item['cantidad'];
         bool isEven = index % 2 != 0;
 
         return _buildFilaTicket(
           index,
-          item['nombre'],
-          item['cantidad'].toString(),
-          '\$${item['precio'].toStringAsFixed(2)}',
-          '\$${totalFila.toStringAsFixed(2)}',
+          item,
           isEven,
         );
       },
     );
   }
 
-  Widget _buildFilaTicket(int index, String nombre, String cant, String precio, String total, bool isEven) {
+  Widget _buildFilaTicket(int index, Map<String, dynamic> item, bool isEven) {
+    double totalFila = item['precio'] * item['cantidad'];
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: BoxDecoration(
@@ -497,22 +587,89 @@ class _VentasScreenState extends State<VentasScreen> {
                   child: const Icon(Icons.sell, color: Colors.white, size: 12),
                 ),
                 const SizedBox(width: 8),
-                Expanded(child: Text(nombre, style: TextStyle(color: primaryDark, fontSize: 12, fontWeight: FontWeight.w500))),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        item['nombre'],
+                        style: TextStyle(color: primaryDark, fontSize: 12, fontWeight: FontWeight.w500),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      Text(
+                        'SKU: ${item['sku'] ?? 'N/A'}',
+                        style: TextStyle(color: textMuted, fontSize: 10),
+                      ),
+                    ],
+                  ),
+                ),
               ],
             ),
           ),
           Expanded(
-            flex: 1,
-            child: Center(
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(color: const Color(0xFFDEEEF8), borderRadius: BorderRadius.circular(4)),
-                child: Text(cant, style: TextStyle(color: primaryDark, fontSize: 11, fontWeight: FontWeight.bold)),
-              ),
+            flex: 2,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                InkWell(
+                  onTap: item['cantidad'] >= 2 ? () => _reducirProducto(index) : null,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: item['cantidad'] >= 2 ? const Color(0xFFFCE9E9) : Colors.grey.shade100,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Icon(
+                      Icons.remove,
+                      size: 11,
+                      color: item['cantidad'] >= 2 ? const Color(0xFFA32D2D) : Colors.grey.shade400,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(color: const Color(0xFFDEEEF8), borderRadius: BorderRadius.circular(4)),
+                  child: Text(
+                    item['cantidad'].toString(),
+                    style: TextStyle(color: primaryDark, fontSize: 11, fontWeight: FontWeight.bold),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                InkWell(
+                  onTap: () => _duplicarProducto(index),
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFD6F0EB),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: const Icon(
+                      Icons.add,
+                      size: 11,
+                      color: Color(0xFF0F6E56),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
-          Expanded(flex: 2, child: Text(precio, textAlign: TextAlign.right, style: TextStyle(color: primaryDark, fontSize: 12))),
-          Expanded(flex: 2, child: Text(total, textAlign: TextAlign.right, style: TextStyle(color: primaryDark, fontSize: 12, fontWeight: FontWeight.bold))),
+          Expanded(
+            flex: 2,
+            child: Text(
+              '\$${item['precio'].toStringAsFixed(2)}',
+              textAlign: TextAlign.right,
+              style: TextStyle(color: primaryDark, fontSize: 12),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Text(
+              '\$${totalFila.toStringAsFixed(2)}',
+              textAlign: TextAlign.right,
+              style: TextStyle(color: primaryDark, fontSize: 12, fontWeight: FontWeight.bold),
+            ),
+          ),
           const SizedBox(width: 12),
           InkWell(
             onTap: () => _eliminarDelTicket(index),

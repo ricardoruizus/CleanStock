@@ -51,7 +51,7 @@ class _InventarioScreenState extends State<InventarioScreen> {
     try {
       final response = await _supabase
           .from('productos')
-          .select()
+          .select('id, nombre, precio, stock, sku')
           .order('nombre', ascending: true);
 
       _productosRaw = List<Map<String, dynamic>>.from(response);
@@ -113,7 +113,7 @@ class _InventarioScreenState extends State<InventarioScreen> {
                     'nombre': nuevoNombre,
                     'precio': nuevoPrecio,
                     'stock': nuevoStock,
-                  }).eq('id', prod['id']); // Asegúrate de que tu tabla use 'id' como llave primaria
+                  }).eq('id', prod['id']); 
 
                   Navigator.pop(context);
                   _mostrarSnack('Producto actualizado', const Color(0xFF2E9E8A));
@@ -167,13 +167,9 @@ class _InventarioScreenState extends State<InventarioScreen> {
     List<Map<String, dynamic>> temporal = [];
 
     for (var prod in _productosRaw) {
-      // 1. Calcular dinámicamente el estado y sus colores de UI
       int stock = prod['stock'] ?? 0;
       double precio = (prod['precio'] as num?)?.toDouble() ?? 0.0;
       String nombre = prod['nombre'] ?? 'Sin nombre';
-      String fecha = prod['creado_en'] != null 
-          ? prod['creado_en'].toString().substring(0, 10) 
-          : 'Sin fecha';
 
       String estado = 'Activo';
       Color colorBadgeBg = const Color(0xFFE2F9F3);
@@ -195,27 +191,25 @@ class _InventarioScreenState extends State<InventarioScreen> {
         icono = Icons.warning;
       }
 
-      // Crear mapa enriquecido con datos visuales para CleanStock
       final itemProcesado = {
         'id': prod['id'],
         'nombre': nombre,
+        'sku': prod['sku'],
         'precio': precio,
         'stock': stock,
         'estado': estado,
-        'fecha': fecha,
+        'fecha': 'N/A', // Columna eliminada
         'colorBadgeBg': colorBadgeBg,
         'colorBadgeTxt': colorBadgeTxt,
         'colorIcono': colorIcono,
         'icono': icono,
       };
 
-      // 2. Aplicar buscador de texto
       if (_busquedaQuery.isNotEmpty && 
           !nombre.toLowerCase().contains(_busquedaQuery.toLowerCase())) {
-        continue; // Ignorar si no coincide
+        continue;
       }
 
-      // 3. Aplicar filtro de barra superior
       if (_filtroActivo == 1 && estado != 'Activo') continue;
       if (_filtroActivo == 2 && estado != 'Bajo stock') continue;
       if (_filtroActivo == 3 && estado != 'Agotado') continue;
@@ -276,18 +270,17 @@ class _InventarioScreenState extends State<InventarioScreen> {
       actions: [
         IconButton(
           icon: Icon(Icons.refresh, color: primaryLight), 
-          onPressed: _cargarProductos, // Botón de recarga manual
+          onPressed: _cargarProductos,
         ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
           child: ElevatedButton.icon(
             onPressed: () async {
-              // [CREATE] Navegar y refrescar al regresar
               await Navigator.push(
                 context,
                 MaterialPageRoute(builder: (context) => const AgregarProductoScreen()),
               );
-              _cargarProductos(); // Se recarga cuando el usuario regresa de agregar
+              _cargarProductos();
             },
             icon: const Icon(Icons.add, size: 16, color: Colors.white),
             label: const Text('Agregar producto', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
@@ -315,7 +308,6 @@ class _InventarioScreenState extends State<InventarioScreen> {
         children: [
           Row(
             children: [
-              // Buscador dinámico funcional
               Container(
                 width: 200,
                 height: 36,
@@ -342,7 +334,6 @@ class _InventarioScreenState extends State<InventarioScreen> {
                 ),
               ),
               const SizedBox(width: 16),
-              // Filtros
               _buildFiltroPill('Todos', 0),
               const SizedBox(width: 8),
               _buildFiltroPill('Activos', 1),
@@ -421,23 +412,21 @@ class _InventarioScreenState extends State<InventarioScreen> {
       ),
       child: Column(
         children: [
-          // Header
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(color: const Color(0xFFDDEAF5), borderRadius: const BorderRadius.vertical(top: Radius.circular(12))),
             child: Row(
               children: [
                 Expanded(flex: 28, child: _thText('PRODUCTO')),
-                Expanded(flex: 16, child: _thText('PRECIO', align: TextAlign.center)),
-                Expanded(flex: 16, child: _thText('STOCK', align: TextAlign.center)),
-                Expanded(flex: 20, child: _thText('ESTADO', align: TextAlign.center)),
-                Expanded(flex: 15, child: _thText('FECHA', align: TextAlign.center)),
+                Expanded(flex: 12, child: _thText('SKU')),
+                Expanded(flex: 14, child: _thText('PRECIO', align: TextAlign.center)),
+                Expanded(flex: 14, child: _thText('STOCK', align: TextAlign.center)),
+                Expanded(flex: 18, child: _thText('ESTADO', align: TextAlign.center)),
                 Expanded(flex: 10, child: _thText('ACCIONES', align: TextAlign.center)),
               ],
             ),
           ),
           
-          // Cuerpo de la Tabla dinámico
           Expanded(
             child: _isDbLoading
                 ? const Center(child: CircularProgressIndicator())
@@ -461,7 +450,6 @@ class _InventarioScreenState extends State<InventarioScreen> {
     return Text(text, textAlign: align, style: TextStyle(color: primaryLight, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 0.5));
   }
 
-  // --- DISEÑO DE ESTADO VACÍO ---
   Widget _buildEstadoVacio() {
     return Center(
       child: Column(
@@ -483,7 +471,6 @@ class _InventarioScreenState extends State<InventarioScreen> {
     );
   }
 
-  // --- FILA DINÁMICA CON EDITAR Y ELIMINAR ---
   Widget _buildFilaTabla(Map<String, dynamic> prod, bool isEven) {
     IconData iconEstado = Icons.circle;
     if (prod['estado'] == 'Bajo stock') iconEstado = Icons.arrow_drop_up;
@@ -497,7 +484,6 @@ class _InventarioScreenState extends State<InventarioScreen> {
       ),
       child: Row(
         children: [
-          // Producto
           Expanded(
             flex: 28,
             child: Row(
@@ -512,19 +498,20 @@ class _InventarioScreenState extends State<InventarioScreen> {
               ],
             ),
           ),
-          // Precio
           Expanded(
-            flex: 16,
+            flex: 12,
+            child: Text(prod['sku'] ?? 'N/A', textAlign: TextAlign.center, style: TextStyle(color: textMuted, fontSize: 12)),
+          ),
+          Expanded(
+            flex: 14,
             child: Text('\$${prod['precio'].toStringAsFixed(2)}', textAlign: TextAlign.center, style: TextStyle(color: primaryDark, fontSize: 12)),
           ),
-          // Stock
           Expanded(
-            flex: 16,
+            flex: 14,
             child: Text('${prod['stock']} uds', textAlign: TextAlign.center, style: TextStyle(color: primaryDark, fontSize: 12)),
           ),
-          // Estado (Badge)
           Expanded(
-            flex: 20,
+            flex: 18,
             child: Center(
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -540,12 +527,6 @@ class _InventarioScreenState extends State<InventarioScreen> {
               ),
             ),
           ),
-          // Fecha
-          Expanded(
-            flex: 15,
-            child: Text(prod['fecha'], textAlign: TextAlign.center, style: TextStyle(color: textMuted, fontSize: 11)),
-          ),
-          // Acciones rápidas (Editar y Borrar)
           Expanded(
             flex: 10,
             child: Row(
