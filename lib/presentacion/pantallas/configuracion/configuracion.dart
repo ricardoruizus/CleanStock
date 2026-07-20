@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:io'; // Para manejar el archivo de la imagen
+import 'package:image_picker/image_picker.dart'; // Para abrir la galería
 import 'inicio_sesion.dart'; // <-- Importación agregada
 
 class ConfiguracionScreen extends StatefulWidget {
@@ -20,10 +22,15 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
   final Color leftColBg = const Color(0xFFF0F6FB);
 
   // --- VARIABLES DE ESTADO ---
-  int _navActivo = 1; 
+  int _navActivo = 2; // 0: General, 1: Cuenta, 2: Apariencia 
   bool _isDarkMode = false;
   bool _isLoading = true;
   String? _idEmpleado;
+
+  // --- VARIABLES PARA LA FOTO ---
+  File? _imagenPerfil;
+  String? _fotoUrl;
+  final ImagePicker _picker = ImagePicker();
 
   // --- DATOS DINÁMICOS DEL USUARIO ---
   final Map<String, String> _userData = {
@@ -62,10 +69,12 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
             _userData['edad'] = (usuario['edad'] ?? 0).toString();
             _userData['correo'] = usuario['correo'] ?? '';
             _userData['password'] = usuario['contrasena_hash'] ?? '';
+            _fotoUrl = usuario['foto_url'];
             
             // Generar iniciales automáticamente
             _actualizarInicialesLocal(_userData['nombre']!);
             _isLoading = false;
+            
           });
         }
       }
@@ -85,6 +94,105 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
       _userData['iniciales'] = "US";
     }
   }
+
+  // --- SELECCIONAR Y SUBIR FOTO A SUPABASE ---
+  Future<void> _cambiarFotoPerfil() async {
+    try {
+      final XFile? fotoSeleccionada = await _picker.pickImage(source: ImageSource.gallery);
+      if (fotoSeleccionada == null) return; // Si el usuario canceló, salir
+
+      setState(() {
+        _isLoading = true;
+        _imagenPerfil = File(fotoSeleccionada.path); // Mostrar temporalmente mientras sube
+      });
+
+      // 1. Leer la imagen como bytes (compatible con móvil y Mac)
+      final bytes = await fotoSeleccionada.readAsBytes();
+      final extension = fotoSeleccionada.path.split('.').last;
+      
+      // 2. Crear un nombre único para evitar sobrescribir (ej. EMP123_16849392.jpg)
+      final nombreArchivo = '${_idEmpleado}_${DateTime.now().millisecondsSinceEpoch}.$extension';
+
+      // 3. Subir al Bucket 'perfiles' en Supabase Storage
+      await Supabase.instance.client.storage
+          .from('perfiles')
+          .uploadBinary(nombreArchivo, bytes);
+
+      // 4. Obtener la URL pública de la imagen que acabamos de subir
+      final String urlPublica = Supabase.instance.client.storage
+          .from('perfiles')
+          .getPublicUrl(nombreArchivo);
+
+      // 5. Guardar la URL en la tabla 'usuarios'
+      await Supabase.instance.client
+          .from('usuarios')
+          .update({'foto_url': urlPublica})
+          .eq('id_empleado', _idEmpleado!.trim());
+
+      // 6. Actualizar la interfaz
+      setState(() {
+        _fotoUrl = urlPublica;
+        _isLoading = false;
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Foto de perfil actualizada en la nube.'), backgroundColor: Color(0xFF2E9E8A)),
+        );
+      }
+    } catch (e) {
+      debugPrint("Error subiendo foto: $e");
+      setState(() => _isLoading = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+           SnackBar(content: Text('Error al subir la foto: $e'), backgroundColor: Colors.redAccent),
+        );
+      }
+    }
+  }
+
+// --- MOSTRAR VISTA PRELIMINAR DE LA FOTO ---
+  void _mostrarVistaPreviaFoto() {
+    // Si no hay foto local ni en internet, no hacemos nada
+    if (_imagenPerfil == null && (_fotoUrl == null || _fotoUrl!.isEmpty)) return;
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.all(20),
+          child: Stack(
+            alignment: Alignment.topRight,
+            children: [
+              // Contenedor de la imagen
+              ClipRRect(
+                borderRadius: BorderRadius.circular(20),
+                child: _imagenPerfil != null
+                    ? Image.file(_imagenPerfil!, fit: BoxFit.contain)
+                    : Image.network(_fotoUrl!, fit: BoxFit.contain),
+              ),
+              // Botón de cerrar (X)
+              Positioned(
+                top: 10,
+                right: 10,
+                child: InkWell(
+                  onTap: () => Navigator.pop(context),
+                  child: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle),
+                    child: const Icon(Icons.close, color: Colors.white, size: 20),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+
 
   // --- ACTUALIZAR EN SUPABASE Y LOCAL ---
   Future<void> _actualizarDatoUsuario(String clave, String nuevoValor) async {
@@ -249,9 +357,9 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
         ],
       ),
       actions: [
-        IconButton(icon: Icon(Icons.help_outline, color: primaryLight), onPressed: () {}),
-        IconButton(icon: Icon(Icons.notifications_none, color: primaryLight), onPressed: () {}),
-        const SizedBox(width: 16),
+        //IconButton(icon: Icon(Icons.help_outline, color: primaryLight), onPressed: () {}),
+        //IconButton(icon: Icon(Icons.notifications_none, color: primaryLight), onPressed: () {}),
+        //const SizedBox(width: 16),
       ],
     );
   }
@@ -280,30 +388,42 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
                     ),
                     child: Column(
                       children: [
-                        Stack(
-                          alignment: Alignment.bottomRight,
-                          children: [
-                            Container(
-                              width: 62, height: 62,
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFDEEEF8),
-                                shape: BoxShape.circle,
-                                border: Border.all(color: primaryLight, width: 2.5),
+                        GestureDetector(
+                          onTap: _mostrarVistaPreviaFoto, // <-- Activa la vista preliminar al tocar
+                          child: Stack(
+                            alignment: Alignment.bottomRight,
+                            children: [
+                              Container(
+                                width: 100, height: 100, // <-- ¡Círculo más grande! (Antes era 62)
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFDEEEF8),
+                                  shape: BoxShape.circle,
+                                  border: Border.all(color: primaryLight, width: 3.0), // Borde un poco más grueso
+                                  image: _imagenPerfil != null
+                                      ? DecorationImage(image: FileImage(_imagenPerfil!), fit: BoxFit.cover)
+                                      : (_fotoUrl != null && _fotoUrl!.isNotEmpty)
+                                          ? DecorationImage(image: NetworkImage(_fotoUrl!), fit: BoxFit.cover)
+                                          : null,
+                                ),
+                                alignment: Alignment.center,
+                                child: (_imagenPerfil == null && (_fotoUrl == null || _fotoUrl!.isEmpty))
+                                    ? Text(
+                                        _isLoading ? '-' : _userData['iniciales']!,
+                                        style: TextStyle(color: primaryDark, fontSize: 32, fontWeight: FontWeight.bold), // <-- Letra más grande
+                                      )
+                                    : null,
                               ),
-                              alignment: Alignment.center,
-                              child: Text(
-                                _isLoading ? '-' : _userData['iniciales']!,
-                                style: TextStyle(color: primaryDark, fontSize: 22, fontWeight: FontWeight.bold),
+                              // Ícono de cámara ajustado al nuevo tamaño
+                              Container(
+                                padding: const EdgeInsets.all(8),
+                                margin: const EdgeInsets.only(bottom: 4, right: 4),
+                                decoration: BoxDecoration(color: primaryLight, shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 2.0)),
+                                child: const Icon(Icons.camera_alt, size: 14, color: Colors.white),
                               ),
-                            ),
-                            Container(
-                              padding: const EdgeInsets.all(4),
-                              decoration: BoxDecoration(color: primaryLight, shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 1.5)),
-                              child: const Icon(Icons.camera_alt, size: 10, color: Colors.white),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
-                        const SizedBox(height: 12),
+                        const SizedBox(height: 16),
                         Text(
                           _isLoading ? 'Cargando usuario...' : _userData['nombre']!, 
                           style: TextStyle(color: primaryDark, fontSize: 14, fontWeight: FontWeight.bold),
@@ -319,8 +439,10 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
                           ),
                         ),
                         const SizedBox(height: 12),
+                        
+                        // --- BOTÓN CORREGIDO ---
                         InkWell(
-                          onTap: () => _mostrarPantallaEdicion('nombre', 'Nombre de Usuario', _userData['nombre']!),
+                          onTap: _cambiarFotoPerfil, // Llama a la nueva función
                           child: Container(
                             width: double.infinity,
                             padding: const EdgeInsets.symmetric(vertical: 8),
@@ -341,7 +463,7 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
                   const SizedBox(height: 24),
                   
                   // NAVEGACIÓN
-                  Text('SECCIONES', style: TextStyle(color: textMuted, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.0)),
+                  /*Text('SECCIONES', style: TextStyle(color: textMuted, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.0)),
                   const SizedBox(height: 8),
                   Container(
                     decoration: BoxDecoration(
@@ -357,7 +479,7 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
                         _buildNavItem(2, Icons.palette, 'Apariencia', const Color(0xFF294E69)),
                       ],
                     ),
-                  ),
+                  ),*/
                 ],
               ),
             ),
@@ -456,15 +578,15 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
         const SizedBox(height: 32),
 
         // APARIENCIA Y SISTEMA
-        Text('APARIENCIA Y SISTEMA', style: TextStyle(color: textMuted, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.0)),
+        Text('FECHA DEL SISTEMA', style: TextStyle(color: textMuted, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.0)),
         const SizedBox(height: 8),
         Container(
           decoration: BoxDecoration(border: Border.all(color: borderLight, width: 0.5), borderRadius: BorderRadius.circular(12)),
           child: Column(
             children: [
               _buildSettingRow('', Icons.calendar_month, const Color(0xFFADCBE3), 'Fecha del dispositivo', '14 de julio, 2026', showEdit: false),
-              Divider(height: 1, color: borderLight.withOpacity(0.5)),
-              _buildThemeToggleRow(),
+              //Divider(height: 1, color: borderLight.withOpacity(0.5)),
+              //_buildThemeToggleRow(),
             ],
           ),
         ),
@@ -522,7 +644,7 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
     );
   }
 
-  Widget _buildThemeToggleRow() {
+  /*Widget _buildThemeToggleRow() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: const BoxDecoration(color: Colors.white),
@@ -556,9 +678,9 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
         ],
       ),
     );
-  }
+  }*/
 
-  Widget _buildThemeBtn(String text, IconData icon, bool isActive) {
+  /*Widget _buildThemeBtn(String text, IconData icon, bool isActive) {
     return InkWell(
       onTap: () => setState(() => _isDarkMode = text == 'Oscuro'),
       child: Container(
@@ -577,5 +699,5 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
         ),
       ),
     );
-  }
+  }*/
 }

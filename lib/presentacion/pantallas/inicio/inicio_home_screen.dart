@@ -49,16 +49,20 @@ class _CleanStockHomeScreenState extends State<CleanStockHomeScreen> {
   
   // Variable para almacenar el nombre dinámico del usuario
   String _nombreUsuario = "Usuario"; 
+  String? _fotoUrl;
+  String? _badgeInventario; 
+  String? _badgeRegistroVentas;
 
-  final List<DashboardCardData> _allCards = [
-    const DashboardCardData(
+  // --- LISTA DINÁMICA DE TARJETAS ---
+  List<DashboardCardData> get _allCards => [
+    DashboardCardData(
       id: 'inventario',
       title: 'Inventario',
       subtitle: 'Gestión de productos',
       mainIcon: Icons.inventory_2_outlined,
-      badgeValue: '4',
-      circleBgColor: Color(0xFFE3F2FD),
-      subIcons: [Icons.all_inbox_rounded, Icons.qr_code_scanner_rounded, Icons.sync_alt_rounded],
+      badgeValue: _badgeInventario, 
+      circleBgColor: const Color(0xFFE3F2FD),
+      subIcons: const [Icons.all_inbox_rounded, Icons.qr_code_scanner_rounded, Icons.sync_alt_rounded],
     ),
     const DashboardCardData(
       id: 'ventas',
@@ -78,14 +82,14 @@ class _CleanStockHomeScreenState extends State<CleanStockHomeScreen> {
       circleBgColor: Color(0xFFE3F2FD),
       subIcons: [Icons.storefront_rounded, Icons.badge_outlined, Icons.location_on_outlined],
     ),
-    const DashboardCardData(
+    DashboardCardData(
       id: 'registroVentas',
       title: 'Registro de venta',
       subtitle: 'Nueva transacción',
       mainIcon: Icons.receipt_long_outlined,
-      badgeValue: '!',
-      circleBgColor: Color(0xFFECEFF1), 
-      subIcons: [Icons.edit_note_rounded, Icons.list_alt_rounded, Icons.done_all_rounded],
+      badgeValue: _badgeRegistroVentas, 
+      circleBgColor: const Color(0xFFECEFF1), 
+      subIcons: const [Icons.edit_note_rounded, Icons.list_alt_rounded, Icons.done_all_rounded],
     ),
   ];
 
@@ -93,6 +97,7 @@ class _CleanStockHomeScreenState extends State<CleanStockHomeScreen> {
   void initState() {
     super.initState();
     _cargarDatosUsuario(); // Carga el nombre al iniciar la pantalla
+    _cargarBadges(); // Carga los badges dinámicos al iniciar la pantalla
   }
 
   Future<void> _cargarDatosUsuario() async {
@@ -101,20 +106,53 @@ class _CleanStockHomeScreenState extends State<CleanStockHomeScreen> {
       final String? idEmpleado = prefs.getString('id_empleado');
 
       if (idEmpleado != null) {
-        // Consultamos el nombre del usuario directamente en la base de datos
+        // Consultamos el nombre del usuario y su foto en la base de datos
         final List<dynamic> response = await Supabase.instance.client
             .from('usuarios')
-            .select('nombre_completo')
+            .select('nombre_completo, foto_url') // <-- Agregamos foto_url a la consulta
             .eq('id_empleado', idEmpleado);
 
         if (response.isNotEmpty && mounted) {
           setState(() {
-            _nombreUsuario = response.first['nombre_completo'];
+            _nombreUsuario = response.first['nombre_completo'] ?? "Usuario";
+            _fotoUrl = response.first['foto_url']; // <-- Guardamos la URL
           });
         }
       }
     } catch (e) {
       debugPrint("Error al cargar datos del usuario: $e");
+    }
+  }
+
+  // --- CARGAR BADGES DINÁMICOS DESDE SUPABASE ---
+  Future<void> _cargarBadges() async {
+    try {
+      // 1. Ejemplo para Inventario: Contar productos con bajo stock (ej. stock <= 5)
+      // *Ajusta 'productos' y 'cantidad' según los nombres de tu tabla en Supabase
+      final resInventario = await Supabase.instance.client
+          .from('productos')
+          .select('id')
+          .lte('stock', 5); // Trae los que tengan 5 o menos en existencia
+
+      // 2. Ejemplo para Ventas: Contar las ventas realizadas HOY
+      // *Ajusta 'ventas' y 'fecha' según tu base de datos
+      final fechaHoy = DateTime.now().toIso8601String().split('T')[0];
+      final resVentas = await Supabase.instance.client
+          .from('ventas')
+          .select('id')
+          .gte('fecha_venta', fechaHoy);
+
+      if (mounted) {
+        setState(() {
+          // Si hay alertas de inventario, muestra el número. Si es 0, oculta el badge (null)
+          _badgeInventario = resInventario.isNotEmpty ? resInventario.length.toString() : null;
+          
+          // Si hay ventas hoy, muestra un "!" o el número de ventas.
+          _badgeRegistroVentas = resVentas.isNotEmpty ? resVentas.length.toString() : null;
+        });
+      }
+    } catch (e) {
+      debugPrint("Error al cargar notificaciones (badges): $e");
     }
   }
 
@@ -330,7 +368,7 @@ class _CleanStockHomeScreenState extends State<CleanStockHomeScreen> {
   }
 
   Widget _buildUserAvatar() {
-    // Genera las iniciales a partir del nombre del usuario de Supabase
+    // Genera las iniciales a partir del nombre del usuario de Supabase por si no hay foto
     String iniciales = "US";
     if (_nombreUsuario.trim().isNotEmpty && _nombreUsuario != "Usuario") {
       List<String> palabras = _nombreUsuario.trim().split(" ");
@@ -344,8 +382,22 @@ class _CleanStockHomeScreenState extends State<CleanStockHomeScreen> {
     return Container(
       width: 44,
       height: 44,
-      decoration: BoxDecoration(color: primaryLightColor, shape: BoxShape.circle, border: Border.all(color: primaryColor.withOpacity(0.2), width: 1.5)),
-      child: Center(child: Text(iniciales, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: primaryColor))),
+      decoration: BoxDecoration(
+        color: primaryLightColor, 
+        shape: BoxShape.circle, 
+        border: Border.all(color: primaryColor.withOpacity(0.2), width: 1.5),
+        // Si hay una foto_url, la mostramos como fondo del contenedor
+        image: (_fotoUrl != null && _fotoUrl!.isNotEmpty)
+            ? DecorationImage(
+                image: NetworkImage(_fotoUrl!),
+                fit: BoxFit.cover,
+              )
+            : null,
+      ),
+      // Si no hay foto, mostramos las letras en el centro
+      child: (_fotoUrl == null || _fotoUrl!.isEmpty)
+          ? Center(child: Text(iniciales, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: primaryColor)))
+          : null,
     );
   }
 
@@ -426,7 +478,11 @@ class _CleanStockHomeScreenState extends State<CleanStockHomeScreen> {
                   right: 16,
                   child: Container(
                     padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(color: card.badgeValue == '!' ? Colors.blue.shade400 : primaryColor.withOpacity(0.7), shape: BoxShape.circle),
+                    decoration: BoxDecoration(
+                      // Si es inventario pinta rojo, si es otro pinta azul
+                      color: card.id == 'inventario' ? Colors.red.shade400 : primaryColor.withOpacity(0.7), 
+                      shape: BoxShape.circle
+                    ),
                     child: Text(card.badgeValue!, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
                   ),
                 ),
