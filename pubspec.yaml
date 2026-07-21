@@ -1,0 +1,31 @@
+name: clean_stock
+description: "A new Flutter project."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.12.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+  supabase_flutter: ^2.8.0
+  cupertino_icons: ^1.0.8
+  shared_preferences: ^2.3.0
+  http: ^1.6.0
+  url_launcher: ^6.3.2
+  share_plus: ^10.0.0
+  mobile_scanner: ^6.0.0
+  pdf: ^3.10.8
+  printing: ^5.11.0
+  path_provider: ^2.1.2
+  image_picker: ^1.2.3
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
