@@ -335,9 +335,13 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
                 
                 // Validación para edad
                 if (clave == 'edad') {
+                  if (!RegExp(r'^[1-9][0-9]*$').hasMatch(value)) {
+                    _mostrarSnack('La edad no puede comenzar con cero ni contener caracteres no válidos.', Colors.red);
+                    return;
+                  }
                   final edad = int.tryParse(value);
-                  if (edad == null || edad < 0) {
-                    _mostrarSnack('Por favor, ingresa una edad válida (número positivo).', Colors.red);
+                  if (edad == null || edad < 16 || edad > 99) {
+                    _mostrarSnack('La edad debe estar entre 16 y 99 años.', Colors.red);
                     return;
                   }
                 }
