@@ -227,10 +227,12 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
           .update({columnaBd: valorProcesado})
           .eq('id_empleado', _idEmpleado!.trim());
 
-      // 2. Si se actualizó el nombre completo, actualizar localmente en SharedPreferences para consistencia con el Home
+      // 2. Si se actualizó el nombre completo o la foto, actualizar localmente en SharedPreferences para consistencia con el Home
+      final prefs = await SharedPreferences.getInstance();
       if (clave == 'nombre') {
-        final prefs = await SharedPreferences.getInstance();
         await prefs.setString('nombre_completo', nuevoValor);
+      } else if (clave == 'foto_url') { // Assuming this is how it's updated
+        await prefs.setString('foto_url', nuevoValor);
       }
 
       // 3. Actualizar la interfaz local
@@ -261,6 +263,15 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
           ),
         );
       }
+    }
+  }
+
+  // --- MOSTRAR SNACKBAR ---
+  void _mostrarSnack(String mensaje, Color color) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(mensaje), backgroundColor: color),
+      );
     }
   }
 
@@ -298,8 +309,41 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
               onPressed: () {
+                final value = controller.text.trim();
+                
+                // Validación: Campo vacío
+                if (value.isEmpty) {
+                  _mostrarSnack('El campo no puede estar vacío.', Colors.red);
+                  return;
+                }
+
+                // Validación para nombre (solo letras y espacios)
+                if (clave == 'nombre') {
+                  if (!RegExp(r'^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]+$').hasMatch(value)) {
+                    _mostrarSnack('El nombre solo debe contener letras.', Colors.red);
+                    return;
+                  }
+                }
+
+                // Validación para correo
+                if (clave == 'correo') {
+                  if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(value)) {
+                    _mostrarSnack('Por favor, ingresa un correo electrónico válido.', Colors.red);
+                    return;
+                  }
+                }
+                
+                // Validación para edad
+                if (clave == 'edad') {
+                  final edad = int.tryParse(value);
+                  if (edad == null || edad < 0) {
+                    _mostrarSnack('Por favor, ingresa una edad válida (número positivo).', Colors.red);
+                    return;
+                  }
+                }
+
                 Navigator.pop(context);
-                _actualizarDatoUsuario(clave, controller.text.trim());
+                _actualizarDatoUsuario(clave, value);
               },
               child: const Text('Guardar', style: TextStyle(color: Colors.white)),
             ),
@@ -314,20 +358,66 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
     return Scaffold(
       backgroundColor: bgLight,
       appBar: _buildAppBar(),
-      body: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // COLUMNA IZQUIERDA (Perfil y Menú)
-          _buildLeftColumn(),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final bool isWide = constraints.maxWidth > 600;
 
-          // COLUMNA DERECHA (Formularios de Configuración)
-          Expanded(
-            child: Container(
-              color: bgLight,
-              child: _buildRightColumn(),
-            ),
-          ),
-        ],
+          if (isWide) {
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _buildLeftColumn(),
+                Expanded(
+                  child: Container(
+                    color: bgLight,
+                    child: _buildRightColumn(),
+                  ),
+                ),
+              ],
+            );
+          } else {
+            return SingleChildScrollView(
+              child: Column(
+                children: [
+                  _buildLeftColumn(),
+                  // BOTÓN EDITAR EN VERTICAL
+                  Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        // Aquí deberíamos abrir un diálogo con el contenido de la columna derecha
+                        showDialog(
+                          context: context,
+                          builder: (context) => AlertDialog(
+                            title: const Text('Editar Configuración'),
+                            content: SizedBox(
+                              width: double.maxFinite,
+                              child: SingleChildScrollView(
+                                child: _buildRightColumn(shrinkWrap: true),
+                              ),
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(context),
+                                child: const Text('Cerrar'),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.edit),
+                      label: const Text('Editar perfil/configuración'),
+                    ),
+                  ),
+                  Container(
+                    color: bgLight,
+                    child: _buildRightColumn(shrinkWrap: true),
+                  ),
+                ],
+              ),
+            );
+          }
+        },
       ),
     );
   }
@@ -526,71 +616,103 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
 
   Widget _buildNavItem(int index, IconData icon, String label, Color dotColor) {
     bool isActive = _navActivo == index;
-    return InkWell(
-      onTap: () => setState(() => _navActivo = index),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        decoration: BoxDecoration(color: isActive ? const Color(0xFFDEEEF8) : Colors.white),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(color: dotColor, borderRadius: BorderRadius.circular(6)),
-              child: Icon(icon, color: Colors.white, size: 14),
-            ),
-            const SizedBox(width: 10),
-            Expanded(child: Text(label, style: TextStyle(color: primaryDark, fontSize: 12, fontWeight: FontWeight.w600))),
-            Icon(Icons.chevron_right, size: 16, color: borderLight),
-          ],
+    return LayoutBuilder(builder: (context, constraints) {
+      // Si estamos en horizontal, reducimos un poco el padding
+      final isHorizontal = MediaQuery.of(context).orientation == Orientation.landscape;
+      final verticalPadding = isHorizontal ? 6.0 : 10.0;
+      final horizontalPadding = isHorizontal ? 8.0 : 12.0;
+
+      return InkWell(
+        onTap: () => setState(() => _navActivo = index),
+        child: Container(
+          padding: EdgeInsets.symmetric(horizontal: horizontalPadding, vertical: verticalPadding),
+          decoration: BoxDecoration(color: isActive ? const Color(0xFFDEEEF8) : Colors.white),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(color: dotColor, borderRadius: BorderRadius.circular(4)),
+                child: Icon(icon, color: Colors.white, size: isHorizontal ? 12 : 14),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    color: primaryDark,
+                    fontSize: isHorizontal ? 11 : 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              Icon(Icons.chevron_right, size: isHorizontal ? 14 : 16, color: borderLight),
+            ],
+          ),
         ),
-      ),
-    );
+      );
+    });
   }
 
   // --- COLUMNA DERECHA ---
-  Widget _buildRightColumn() {
+  Widget _buildRightColumn({bool shrinkWrap = false}) {
     if (_isLoading) {
       return Center(
-        child: CircularProgressIndicator(color: primaryLight),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 24.0),
+          child: CircularProgressIndicator(color: primaryLight),
+        ),
+      );
+    }
+
+    final children = [
+      // DATOS DE LA CUENTA
+      Text('DATOS DE LA CUENTA', style: TextStyle(color: textMuted, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.0)),
+      const SizedBox(height: 8),
+      Container(
+        decoration: BoxDecoration(border: Border.all(color: borderLight, width: 0.5), borderRadius: BorderRadius.circular(12)),
+        child: Column(
+          children: [
+            _buildSettingRow('nombre', Icons.person, const Color(0xFF65ABDE), 'Nombre', _userData['nombre']!),
+            Divider(height: 1, color: borderLight.withValues(alpha: 0.5)),
+            _buildSettingRow('edad', Icons.cake, const Color(0xFF4A87B4), 'Edad', '${_userData['edad']} años'),
+            Divider(height: 1, color: borderLight.withValues(alpha: 0.5)),
+            _buildSettingRow('correo', Icons.mail, const Color(0xFF4A87B4), 'Correo electrónico', _userData['correo']!),
+            Divider(height: 1, color: borderLight.withValues(alpha: 0.5)),
+            _buildSettingRow('password', Icons.lock, const Color(0xFF294E69), 'Contraseña', '••••••••', isSecure: true),
+          ],
+        ),
+      ),
+      const SizedBox(height: 32),
+
+      // APARIENCIA Y SISTEMA
+      Text('FECHA DEL SISTEMA', style: TextStyle(color: textMuted, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.0)),
+      const SizedBox(height: 8),
+      Container(
+        decoration: BoxDecoration(border: Border.all(color: borderLight, width: 0.5), borderRadius: BorderRadius.circular(12)),
+        child: Column(
+          children: [
+            _buildSettingRow('', Icons.calendar_month, const Color(0xFFADCBE3), 'Fecha del dispositivo', '14 de julio, 2026', showEdit: false),
+            //Divider(height: 1, color: borderLight.withOpacity(0.5)),
+            //_buildThemeToggleRow(),
+          ],
+        ),
+      ),
+    ];
+
+    if (shrinkWrap) {
+      return Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: children,
+        ),
       );
     }
 
     return ListView(
       padding: const EdgeInsets.all(24),
-      children: [
-        // DATOS DE LA CUENTA
-        Text('DATOS DE LA CUENTA', style: TextStyle(color: textMuted, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.0)),
-        const SizedBox(height: 8),
-        Container(
-          decoration: BoxDecoration(border: Border.all(color: borderLight, width: 0.5), borderRadius: BorderRadius.circular(12)),
-          child: Column(
-            children: [
-              _buildSettingRow('nombre', Icons.person, const Color(0xFF65ABDE), 'Nombre', _userData['nombre']!),
-              Divider(height: 1, color: borderLight.withValues(alpha: 0.5)),
-              _buildSettingRow('edad', Icons.cake, const Color(0xFF4A87B4), 'Edad', '${_userData['edad']} años'),
-              Divider(height: 1, color: borderLight.withValues(alpha: 0.5)),
-              _buildSettingRow('correo', Icons.mail, const Color(0xFF4A87B4), 'Correo electrónico', _userData['correo']!),
-              Divider(height: 1, color: borderLight.withValues(alpha: 0.5)),
-              _buildSettingRow('password', Icons.lock, const Color(0xFF294E69), 'Contraseña', '••••••••', isSecure: true),
-            ],
-          ),
-        ),
-        const SizedBox(height: 32),
-
-        // APARIENCIA Y SISTEMA
-        Text('FECHA DEL SISTEMA', style: TextStyle(color: textMuted, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.0)),
-        const SizedBox(height: 8),
-        Container(
-          decoration: BoxDecoration(border: Border.all(color: borderLight, width: 0.5), borderRadius: BorderRadius.circular(12)),
-          child: Column(
-            children: [
-              _buildSettingRow('', Icons.calendar_month, const Color(0xFFADCBE3), 'Fecha del dispositivo', '14 de julio, 2026', showEdit: false),
-              //Divider(height: 1, color: borderLight.withOpacity(0.5)),
-              //_buildThemeToggleRow(),
-            ],
-          ),
-        ),
-      ],
+      children: children,
     );
   }
 
