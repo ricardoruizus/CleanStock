@@ -30,7 +30,7 @@ class DashboardCardData {
 }
 
 class CleanStockHomeScreen extends StatefulWidget {
-  const CleanStockHomeScreen({Key? key}) : super(key: key);
+  const CleanStockHomeScreen({super.key});
 
   @override
   State<CleanStockHomeScreen> createState() => _CleanStockHomeScreenState();
@@ -269,7 +269,7 @@ class _CleanStockHomeScreenState extends State<CleanStockHomeScreen> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(30),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), spreadRadius: 1, blurRadius: 10, offset: const Offset(0, 4))],
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), spreadRadius: 1, blurRadius: 10, offset: const Offset(0, 4))],
       ),
       child: TextField(
         controller: _searchController,
@@ -293,7 +293,7 @@ class _CleanStockHomeScreenState extends State<CleanStockHomeScreen> {
       decoration: BoxDecoration(
         color: sidebarBgColor,
         borderRadius: BorderRadius.circular(24),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 16, spreadRadius: 0, offset: const Offset(4, 0))],
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 16, spreadRadius: 0, offset: const Offset(4, 0))],
       ),
       child: Column(
         children: [
@@ -327,7 +327,7 @@ class _CleanStockHomeScreenState extends State<CleanStockHomeScreen> {
           decoration: BoxDecoration(
             gradient: const LinearGradient(colors: [primaryColor, accentColor], begin: Alignment.topLeft, end: Alignment.bottomRight),
             borderRadius: BorderRadius.circular(16),
-            boxShadow: [BoxShadow(color: primaryColor.withOpacity(0.3), blurRadius: 10, offset: const Offset(0, 4))],
+            boxShadow: [BoxShadow(color: primaryColor.withValues(alpha: 0.3), blurRadius: 10, offset: const Offset(0, 4))],
           ),
           child: const Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 26),
         ),
@@ -385,7 +385,7 @@ class _CleanStockHomeScreenState extends State<CleanStockHomeScreen> {
       decoration: BoxDecoration(
         color: primaryLightColor, 
         shape: BoxShape.circle, 
-        border: Border.all(color: primaryColor.withOpacity(0.2), width: 1.5),
+        border: Border.all(color: primaryColor.withValues(alpha: 0.2), width: 1.5),
         // Si hay una foto_url, la mostramos como fondo del contenedor
         image: (_fotoUrl != null && _fotoUrl!.isNotEmpty)
             ? DecorationImage(
@@ -433,8 +433,8 @@ class _CleanStockHomeScreenState extends State<CleanStockHomeScreen> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: const Color(0xFFE2E8F0).withOpacity(0.8), width: 1.5),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.012), blurRadius: 12, offset: const Offset(0, 4))],
+        border: Border.all(color: const Color(0xFFE2E8F0).withValues(alpha: 0.8), width: 1.5),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.012), blurRadius: 12, offset: const Offset(0, 4))],
       ),
       child: Material(
         color: Colors.transparent,
@@ -472,6 +472,20 @@ class _CleanStockHomeScreenState extends State<CleanStockHomeScreen> {
                   ],
                 ),
               ),
+              if (card.badgeValue != null)
+                Positioned(
+                  top: 16,
+                  right: 16,
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      // Si es inventario pinta rojo, si es otro pinta azul
+                      color: card.id == 'inventario' ? Colors.red.shade400 : primaryColor.withValues(alpha: 0.7), 
+                      shape: BoxShape.circle
+                    ),
+                    child: Text(card.badgeValue!, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
+                  ),
+                ),
             ],
           ),
         ),

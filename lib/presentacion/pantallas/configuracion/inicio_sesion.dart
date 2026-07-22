@@ -452,7 +452,7 @@ class _LoginPantallaState extends State<LoginPantalla> {
                         borderRadius: BorderRadius.circular(22), 
                         boxShadow: [
                           BoxShadow(
-                            color: const Color(0xFF62A5DF).withOpacity(0.3), 
+                            color: const Color(0xFF62A5DF).withValues(alpha: 0.3), 
                             blurRadius: 16, 
                             offset: const Offset(0, 8), 
                           ),
@@ -490,7 +490,7 @@ class _LoginPantallaState extends State<LoginPantalla> {
                         ),
                         boxShadow: [
                           BoxShadow(
-                            color: const Color(0xFF1E2E40).withOpacity(0.03), 
+                            color: const Color(0xFF1E2E40).withValues(alpha: 0.03), 
                             blurRadius: 10, 
                             offset: const Offset(0, 4), 
                           ),

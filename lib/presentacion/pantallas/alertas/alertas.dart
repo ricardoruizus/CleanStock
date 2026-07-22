@@ -317,7 +317,7 @@ class _AlertasScreenState extends State<AlertasScreen> {
       child: Center(
         child: Column(
           children: [
-            Icon(Icons.notifications_off_outlined, size: 50, color: borderLight.withOpacity(0.8)),
+            Icon(Icons.notifications_off_outlined, size: 50, color: borderLight.withValues(alpha: 0.8)),
             const SizedBox(height: 12),
             Text('No hay registros aquí', style: TextStyle(color: primaryDark, fontSize: 16, fontWeight: FontWeight.bold)),
             const SizedBox(height: 4),
@@ -337,7 +337,7 @@ class _AlertasScreenState extends State<AlertasScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
         color: isEven ? const Color(0xFFF8FBFD) : Colors.white,
-        border: Border(bottom: BorderSide(color: borderLight.withOpacity(0.3), width: 0.5)),
+        border: Border(bottom: BorderSide(color: borderLight.withValues(alpha: 0.3), width: 0.5)),
       ),
       child: Row(
         children: [
@@ -417,7 +417,7 @@ class _AlertasScreenState extends State<AlertasScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: isPrimary ? primaryLight : Colors.white,
-        border: Border(top: BorderSide(color: borderLight.withOpacity(0.5), width: 0.5)),
+        border: Border(top: BorderSide(color: borderLight.withValues(alpha: 0.5), width: 0.5)),
       ),
       child: Row(
         children: [
@@ -456,7 +456,7 @@ class _AlertasScreenState extends State<AlertasScreen> {
                 const SizedBox(height: 4),
                 Text('Venta potencial retenida por falta de stock.', style: TextStyle(color: textMuted, fontSize: 11)),
                 const SizedBox(height: 12),
-                Icon(Icons.trending_down, color: primaryDark.withOpacity(0.1), size: 36),
+                Icon(Icons.trending_down, color: primaryDark.withValues(alpha: 0.1), size: 36),
               ],
             ),
           ),

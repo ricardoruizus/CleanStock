@@ -443,7 +443,7 @@ class _ProveedoresScreenState extends State<ProveedoresScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.inventory_2_outlined, size: 64, color: borderLight.withOpacity(0.5)),
+          Icon(Icons.inventory_2_outlined, size: 64, color: borderLight.withValues(alpha: 0.5)),
           const SizedBox(height: 16),
           Text(
             hayFiltroOBusqueda ? 'No hay proveedores que coincidan' : 'Aún no hay proveedores registrados',
@@ -475,7 +475,7 @@ class _ProveedoresScreenState extends State<ProveedoresScreen> {
   Widget _buildFilaCategoria(String emoji, String nombre, int cantidad) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(color: const Color(0xFFDEEEF8), border: Border(top: BorderSide(color: borderLight.withOpacity(0.5), width: 0.5))),
+      decoration: BoxDecoration(color: const Color(0xFFDEEEF8), border: Border(top: BorderSide(color: borderLight.withValues(alpha: 0.5), width: 0.5))),
       child: Row(
         children: [
           Text(emoji, style: const TextStyle(fontSize: 14)),
@@ -500,7 +500,7 @@ class _ProveedoresScreenState extends State<ProveedoresScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: BoxDecoration(
         color: isEven ? Colors.white : const Color(0xFFF8FBFD),
-        border: Border(top: BorderSide(color: borderLight.withOpacity(0.5), width: 0.5)),
+        border: Border(top: BorderSide(color: borderLight.withValues(alpha: 0.5), width: 0.5)),
       ),
       child: Row(
         children: [

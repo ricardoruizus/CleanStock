@@ -1,8 +1,5 @@
 import 'package:flutter/material.dart';
-import 'dart:typed_data';
-import 'package:printing/printing.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'barcode_scanner_screen.dart';
 import '../../../servicios/ticket_servicio.dart';
 
 class VentasScreen extends StatefulWidget {
@@ -17,7 +14,7 @@ class _VentasScreenState extends State<VentasScreen> {
 
   // --- VARIABLES DE ESTADO ---
   String _codigoInput = ""; 
-  List<Map<String, dynamic>> _ticket = [];
+  final List<Map<String, dynamic>> _ticket = [];
   
   // Catálogo real traído de la Base de Datos
   List<Map<String, dynamic>> _catalogo = [];
@@ -150,69 +147,55 @@ class _VentasScreenState extends State<VentasScreen> {
       return;
     }
 
-    setState(() => _isLoadingCatalog = true);
-    final String folioUnico = 'V-${DateTime.now().millisecondsSinceEpoch.toString().substring(5)}';
-    final double totalVenta = _ticket.fold(0.0, (sum, item) => sum + (item['precio'] * item['cantidad']));
-
-    // 1. Generar ticket bytes primero
-    final Uint8List ticketBytes = await TicketServicio.generarTicketBytes(_ticket, totalVenta, folioUnico);
-
-    // 2. Preguntar por el ticket mostrando la vista previa
-    final bool? compartir = await showDialog<bool>(
+    // Preguntar por el ticket
+    final bool? generarTicket = await showDialog<bool>(
       context: context,
-      barrierDismissible: false, // Forzar decisión
       builder: (context) => AlertDialog(
-        title: const Text('Vista previa del Ticket'),
-        content: SizedBox(
-          width: 400,
-          height: 500,
-          child: PdfPreview(
-            build: (format) => ticketBytes,
-            canChangeOrientation: false,
-            canChangePageFormat: false,
-            canDebug: false,
-          ),
-        ),
+        title: const Text('¿Generar Ticket?'),
+        content: const Text('¿Deseas generar el ticket de compra y compartirlo?'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Registrar sin enviar')),
-          ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text('Registrar y enviar')),
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('No')),
+          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Sí')),
         ],
       ),
     );
 
-    if (compartir == null) {
-      setState(() => _isLoadingCatalog = false);
-      return; // Cancelado
-    }
+    setState(() => _isLoadingCatalog = true);
 
     try {
-      // 3. Insertar la venta en BD
+      final double totalVenta = _ticket.fold(0.0, (sum, item) => sum + (item['precio'] * item['cantidad']));
+      final String folioUnico = 'V-${DateTime.now().millisecondsSinceEpoch.toString().substring(5)}';
+
+      // 1. Insertar la venta cabecera (Maestro) en 'ventas'
       final nuevaVenta = await _supabase.from('ventas').insert({
         'folio': folioUnico,
         'total': totalVenta,
         'estado': 'Completado',
-        'fecha_venta': DateTime.now().toIso8601String(),
+        'fecha_venta': DateTime.now().toIso8601String(), // Enviamos la hora exacta del dispositivo
       }).select().single();
 
       final int ventaId = nuevaVenta['id'];
 
-      // 4. Insertar detalles y descontar stock
+      // 2. Insertar cada renglón en 'venta_detalles'[cite: 3]
       for (var item in _ticket) {
         await _supabase.from('venta_detalles').insert({
           'venta_id': ventaId,
           'producto_id': item['id'],
           'cantidad': item['cantidad'],
           'precio_unitario': item['precio'],
+          // El subtotal se calcula solo en la BD gracias al script alter[cite: 3]
         });
+
+        // 3. Descontar stock del producto en la tabla 'productos'
         await _supabase.rpc('descontar_stock', params: {
           'p_id': item['id'],
           'p_cantidad': item['cantidad']
         });
       }
 
-      // 5. Compartir si el usuario aceptó
-      if (compartir == true) {
-        await TicketServicio.compartirTicket(ticketBytes, folioUnico);
+      // Generar ticket si el usuario aceptó
+      if (generarTicket == true) {
+        await TicketServicio.generarYCompartirTicket(_ticket, totalVenta, folioUnico);
       }
 
       _mostrarSnack('¡Venta $folioUnico registrada con éxito!', const Color(0xFF2E9E8A));
@@ -222,6 +205,7 @@ class _VentasScreenState extends State<VentasScreen> {
         _codigoInput = "";
       });
 
+      // Recargar catálogo para actualizar stocks en pantalla
       await _cargarCatalogoProductos();
 
     } catch (e) {
@@ -299,43 +283,29 @@ class _VentasScreenState extends State<VentasScreen> {
                     ],
                   );
                 } else {
-                  // --- DISEÑO VERTICAL (MODIFICADO PROPORCIONAL DOMINANTE) ---
+                  // --- DISEÑO VERTICAL (ORIGINAL FUNCIONAL) ---
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      // PANEL SUPERIOR (Búsqueda + Sugerencias) - flex 1
-                      Expanded(
-                        flex: 1,
-                        child: Container(
-                          color: leftPanelBg,
-                          padding: const EdgeInsets.all(8.0),
-                          child: Column(
-                            children: [
-                              _buildDisplayCodigo(), 
-                              const SizedBox(height: 5),
-                              Expanded(child: _buildPanelSugerencias()), 
-                            ],
-                          ),
+                      // PANEL IZQUIERDO (Búsqueda + Teclado)
+                      Container(
+                        color: leftPanelBg,
+                        padding: const EdgeInsets.all(12.0),
+                        child: Column(
+                          children: [
+                            _buildDisplayCodigo(), 
+                            const SizedBox(height: 10),
+                            SizedBox(height: 180, child: _buildPanelSugerencias()), 
+                            const SizedBox(height: 10),
+                            _buildNumpad(isMobile: true), 
+                          ],
                         ),
                       ),
                       
                       Container(height: 0.5, color: borderLight),
 
-                      // PANEL INFERIOR (Teclado) - flex 1
+                      // PANEL DERECHO (Ticket)
                       Expanded(
-                        flex: 1,
-                        child: Container(
-                          color: leftPanelBg,
-                          padding: EdgeInsets.zero,
-                          child: _buildNumpad(isMobile: true),
-                        ),
-                      ),
-                      
-                      Container(height: 0.5, color: borderLight),
-
-                      // PANEL DERECHO (Ticket) - flex 2
-                      Expanded(
-                        flex: 2,
                         child: Container(
                           color: bgLight,
                           child: Column(
@@ -449,7 +419,7 @@ class _VentasScreenState extends State<VentasScreen> {
               : ListView.separated(
                   padding: const EdgeInsets.symmetric(vertical: 4),
                   itemCount: sugerencias.length,
-                  separatorBuilder: (context, index) => Divider(height: 1, color: borderLight.withOpacity(0.3)),
+                  separatorBuilder: (context, index) => Divider(height: 1, color: borderLight.withValues(alpha: 0.3)),
                   itemBuilder: (context, index) {
                     final prod = sugerencias[index];
                     return InkWell(
@@ -487,49 +457,19 @@ class _VentasScreenState extends State<VentasScreen> {
   }
 
   Widget _buildNumpad({bool isMobile = false}) {
-    if (!isMobile) {
-      return GridView.count(
-        crossAxisCount: 3,
-        crossAxisSpacing: 4,
-        mainAxisSpacing: 4,
-        childAspectRatio: 1.2,
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        children: [
-          _buildTeclaNum('1'), _buildTeclaNum('2'), _buildTeclaNum('3'),
-          _buildTeclaNum('4'), _buildTeclaNum('5'), _buildTeclaNum('6'),
-          _buildTeclaNum('7'), _buildTeclaNum('8'), _buildTeclaNum('9'),
-          _buildTeclaAccion(Icons.check_circle, true, 'add'), _buildTeclaNum('0'), _buildTeclaAccion(Icons.backspace_outlined, false, 'del'),
-        ],
-      );
-    }
-
-    // --- DISEÑO FORZADO A EXPANDIR EN MÓVIL ---
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+    return GridView.count(
+      crossAxisCount: 3,
+      crossAxisSpacing: 4,
+      mainAxisSpacing: 4,
+      childAspectRatio: isMobile ? 2.0 : 1.2, 
+      shrinkWrap: true, 
+      physics: const NeverScrollableScrollPhysics(),
       children: [
-        Expanded(child: _buildFilaNumpad(['1', '2', '3'])),
-        Expanded(child: _buildFilaNumpad(['4', '5', '6'])),
-        Expanded(child: _buildFilaNumpad(['7', '8', '9'])),
-        Expanded(child: _buildFilaNumpad(['add', '0', 'del'])),
+        _buildTeclaNum('1'), _buildTeclaNum('2'), _buildTeclaNum('3'),
+        _buildTeclaNum('4'), _buildTeclaNum('5'), _buildTeclaNum('6'),
+        _buildTeclaNum('7'), _buildTeclaNum('8'), _buildTeclaNum('9'),
+        _buildTeclaAccion(Icons.check_circle, true, 'add'), _buildTeclaNum('0'), _buildTeclaAccion(Icons.backspace_outlined, false, 'del'),
       ],
-    );
-  }
-
-  Widget _buildFilaNumpad(List<String> teclas) {
-    return Row(
-      children: teclas.map((tecla) {
-        return Expanded(
-          child: Padding(
-            padding: const EdgeInsets.all(1.0), // Reducido para quitar relleno
-            child: tecla == 'add'
-                ? _buildTeclaAccion(Icons.check_circle, true, 'add')
-                : tecla == 'del'
-                    ? _buildTeclaAccion(Icons.backspace_outlined, false, 'del')
-                    : _buildTeclaNum(tecla),
-          ),
-        );
-      }).toList(),
     );
   }
 
@@ -540,7 +480,7 @@ class _VentasScreenState extends State<VentasScreen> {
       child: Container(
         decoration: BoxDecoration(
           color: Colors.white,
-          border: Border.all(color: borderLight.withOpacity(0.5)),
+          border: Border.all(color: borderLight.withValues(alpha: 0.5)),
           borderRadius: BorderRadius.circular(8),
         ),
         alignment: Alignment.center,
@@ -602,7 +542,7 @@ class _VentasScreenState extends State<VentasScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.shopping_cart_checkout, size: 48, color: borderLight.withOpacity(0.5)),
+            Icon(Icons.shopping_cart_checkout, size: 48, color: borderLight.withValues(alpha: 0.5)),
             const SizedBox(height: 12),
             Text('El ticket está vacío', style: TextStyle(color: primaryDark, fontSize: 14, fontWeight: FontWeight.bold)),
             Text('Digita códigos en el teclado de la izquierda', style: TextStyle(color: textMuted, fontSize: 12)),
@@ -632,7 +572,7 @@ class _VentasScreenState extends State<VentasScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: BoxDecoration(
         color: isEven ? const Color(0xFFF5F9FD) : Colors.white,
-        border: Border(bottom: BorderSide(color: borderLight.withOpacity(0.3), width: 0.5)),
+        border: Border(bottom: BorderSide(color: borderLight.withValues(alpha: 0.3), width: 0.5)),
       ),
       child: Row(
         children: [

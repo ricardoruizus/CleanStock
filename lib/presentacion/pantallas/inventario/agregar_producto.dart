@@ -218,7 +218,7 @@ class _AgregarProductoScreenState extends State<AgregarProductoScreen> {
       style: TextStyle(color: primaryDark, fontWeight: FontWeight.w500),
       decoration: InputDecoration(
         labelText: label,
-        labelStyle: TextStyle(color: primaryDark.withOpacity(0.7), fontWeight: FontWeight.w600),
+        labelStyle: TextStyle(color: primaryDark.withValues(alpha: 0.7), fontWeight: FontWeight.w600),
         filled: true,
         fillColor: Colors.white,
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),

@@ -50,7 +50,7 @@ class Usuario {
         String? fotoPerfil,
     }){
         return Usuario(
-            id: this.id,
+            id: id,
             nombre: nombre ?? this.nombre,
             edad: edad ?? this.edad,
             correo: correo ?? this.correo,

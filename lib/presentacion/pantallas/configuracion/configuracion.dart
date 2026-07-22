@@ -23,7 +23,7 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
 
   // --- VARIABLES DE ESTADO ---
   int _navActivo = 2; // 0: General, 1: Cuenta, 2: Apariencia 
-  bool _isDarkMode = false;
+  final bool _isDarkMode = false;
   bool _isLoading = true;
   String? _idEmpleado;
 
@@ -566,11 +566,11 @@ class _ConfiguracionScreenState extends State<ConfiguracionScreen> {
           child: Column(
             children: [
               _buildSettingRow('nombre', Icons.person, const Color(0xFF65ABDE), 'Nombre', _userData['nombre']!),
-              Divider(height: 1, color: borderLight.withOpacity(0.5)),
+              Divider(height: 1, color: borderLight.withValues(alpha: 0.5)),
               _buildSettingRow('edad', Icons.cake, const Color(0xFF4A87B4), 'Edad', '${_userData['edad']} años'),
-              Divider(height: 1, color: borderLight.withOpacity(0.5)),
+              Divider(height: 1, color: borderLight.withValues(alpha: 0.5)),
               _buildSettingRow('correo', Icons.mail, const Color(0xFF4A87B4), 'Correo electrónico', _userData['correo']!),
-              Divider(height: 1, color: borderLight.withOpacity(0.5)),
+              Divider(height: 1, color: borderLight.withValues(alpha: 0.5)),
               _buildSettingRow('password', Icons.lock, const Color(0xFF294E69), 'Contraseña', '••••••••', isSecure: true),
             ],
           ),

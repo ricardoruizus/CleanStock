@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../ventas/ventas.dart';
 
 class RegistroVentasScreen extends StatefulWidget {
   const RegistroVentasScreen({super.key});
@@ -428,7 +427,7 @@ class _RegistroVentasScreenState extends State<RegistroVentasScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.receipt_long_outlined, size: 64, color: borderLight.withOpacity(0.5)),
+          Icon(Icons.receipt_long_outlined, size: 64, color: borderLight.withValues(alpha: 0.5)),
           const SizedBox(height: 16),
           Text('No hay registros de ventas', style: TextStyle(color: primaryDark, fontSize: 16, fontWeight: FontWeight.bold)),
           const SizedBox(height: 8),
@@ -465,7 +464,7 @@ class _RegistroVentasScreenState extends State<RegistroVentasScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: BoxDecoration(
         color: isEven ? Colors.white : const Color(0xFFF8FBFD),
-        border: Border(top: BorderSide(color: borderLight.withOpacity(0.5), width: 0.5)),
+        border: Border(top: BorderSide(color: borderLight.withValues(alpha: 0.5), width: 0.5)),
       ),
       child: Row(
         children: [
@@ -475,7 +474,7 @@ class _RegistroVentasScreenState extends State<RegistroVentasScreen> {
               children: [
                 Container(
                   padding: const EdgeInsets.all(4),
-                  decoration: BoxDecoration(color: primaryLight.withOpacity(0.2), borderRadius: BorderRadius.circular(6)),
+                  decoration: BoxDecoration(color: primaryLight.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(6)),
                   child: Icon(Icons.sell, color: primaryLight, size: 12),
                 ),
                 const SizedBox(width: 8),
@@ -522,7 +521,6 @@ class _RegistroVentasScreenState extends State<RegistroVentasScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                     decoration: BoxDecoration(color: badgeBgColor, borderRadius: BorderRadius.circular(6)),
                     child: Row(
-                      mainAxisSize: MainAxisSize.min, // Usar min para evitar overflow
                       children: [
                         Icon(statusIcon, size: 10, color: badgeTextColor),
                         const SizedBox(width: 2),

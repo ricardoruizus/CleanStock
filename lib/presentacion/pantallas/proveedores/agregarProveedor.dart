@@ -173,7 +173,7 @@ class _ProveedorFormScreenState extends State<ProveedorFormScreen> {
                     ),
                     const SizedBox(height: 16),
                     DropdownButtonFormField<int>(
-                      value: _categoriaIdSeleccionada,
+                      initialValue: _categoriaIdSeleccionada,
                       decoration: const InputDecoration(labelText: 'Categoría', border: OutlineInputBorder()),
                       items: _categorias.map((cat) => DropdownMenuItem(value: cat['id'] as int, child: Text(cat['nombre']))).toList(),
                       onChanged: (val) => setState(() => _categoriaIdSeleccionada = val),
@@ -185,7 +185,7 @@ class _ProveedorFormScreenState extends State<ProveedorFormScreen> {
                     ),
                     const SizedBox(height: 16),
                     DropdownButtonFormField<String>(
-                      value: _estadoSeleccionado,
+                      initialValue: _estadoSeleccionado,
                       decoration: const InputDecoration(labelText: 'Estado', border: OutlineInputBorder()),
                       items: ['Activo', 'Inactivo'].map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
                       onChanged: (val) => setState(() => _estadoSeleccionado = val!),

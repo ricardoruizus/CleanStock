@@ -388,7 +388,7 @@ class _InventarioScreenState extends State<InventarioScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: bgColor,
-        border: Border.all(color: txtColor.withOpacity(0.3), width: 0.5),
+        border: Border.all(color: txtColor.withValues(alpha: 0.3), width: 0.5),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
@@ -455,7 +455,7 @@ class _InventarioScreenState extends State<InventarioScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.inventory_2_outlined, size: 64, color: borderLight.withOpacity(0.5)),
+          Icon(Icons.inventory_2_outlined, size: 64, color: borderLight.withValues(alpha: 0.5)),
           const SizedBox(height: 16),
           Text(
             'No hay productos que coincidan',
@@ -480,7 +480,7 @@ class _InventarioScreenState extends State<InventarioScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
         color: isEven ? Colors.white : const Color(0xFFF5F9FD),
-        border: Border(top: BorderSide(color: borderLight.withOpacity(0.5), width: 0.5)),
+        border: Border(top: BorderSide(color: borderLight.withValues(alpha: 0.5), width: 0.5)),
       ),
       child: Row(
         children: [
