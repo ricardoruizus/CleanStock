@@ -1,10 +1,9 @@
 import 'dart:io';
 import 'package:pdf/widgets.dart' as pw;
-import 'package:share_plus/share_plus.dart';
 import 'package:path_provider/path_provider.dart';
 
 class TicketServicio {
-  static Future<void> generarYCompartirTicket(List<Map<String, dynamic>> ticket, double total, String folio) async {
+  static Future<File> generarTicketPDF(List<Map<String, dynamic>> ticket, double total, String folio) async {
     final pdf = pw.Document();
 
     pdf.addPage(
@@ -38,8 +37,6 @@ class TicketServicio {
     final directory = await getApplicationDocumentsDirectory();
     final file = File('${directory.path}/ticket_$folio.pdf');
     await file.writeAsBytes(await pdf.save());
-
-    // Compartir por WhatsApp
-    await Share.shareXFiles([XFile(file.path)], text: 'Aquí está tu ticket de compra: $folio');
+    return file;
   }
 }

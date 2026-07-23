@@ -146,8 +146,13 @@ class _RegistroPantallaState extends State<RegistroPantalla> {
                       width: 80,
                       height: 80,
                       decoration: BoxDecoration(
-                        color: const Color(0xFF62A5DF),
+                        color: Colors.white,
                         borderRadius: BorderRadius.circular(22),
+                        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 10, offset: const Offset(0, 4))],
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(22),
+                        child: Image.asset('assets/logo.png', fit: BoxFit.cover),
                       ),
                     ),
                     const SizedBox(height: 16),

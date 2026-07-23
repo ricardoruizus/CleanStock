@@ -213,12 +213,7 @@ class _AlertasScreenState extends State<AlertasScreen> {
           Text('Alertas', style: TextStyle(color: primaryDark, fontSize: 16, fontWeight: FontWeight.w600)),
         ],
       ),
-      actions: [
-        IconButton(
-          icon: Icon(Icons.refresh, color: primaryLight), 
-          onPressed: _cargarAlertas // Botón para recargar la base de datos de manera manual
-        ),
-      ],
+      actions: const [],
     );
   }
 

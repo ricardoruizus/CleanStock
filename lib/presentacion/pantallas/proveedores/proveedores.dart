@@ -1,6 +1,6 @@
 import 'dart:convert';
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:share_plus/share_plus.dart';
 import 'agregarProveedor.dart';
@@ -106,8 +106,6 @@ class _ProveedoresScreenState extends State<ProveedoresScreen> {
     }
   }
 
-  // (La inserción de nuevos proveedores ahora vive en AgregarProveedorScreen)
-
   // --- ACTUALIZAR ESTADO ---
   Future<void> _actualizarEstado(int id, String nuevoEstado) async {
     try {
@@ -128,6 +126,141 @@ class _ProveedoresScreenState extends State<ProveedoresScreen> {
     } catch (e) {
       _mostrarSnack('Error al eliminar proveedor: $e', Colors.red);
     }
+  }
+
+  // --- ELIMINAR CATEGORÍA ---
+  Future<void> _eliminarCategoria(int id, String nombre, int? nuevaCategoriaId) async {
+    try {
+      // 1. Reasignar proveedores
+      if (nuevaCategoriaId != null) {
+        await _supabase.from('proveedores').update({'categoria_id': nuevaCategoriaId}).eq('categoria_id', id);
+      } else {
+        // Opcional: ¿Qué hacer si no hay nueva categoría? ¿Dejarlos sin categoría?
+        // Asumiendo que categoria_id puede ser nulo o que obligatoriamente deben cambiarla.
+        await _supabase.from('proveedores').update({'categoria_id': null}).eq('categoria_id', id);
+      }
+      
+      // 2. Eliminar categoría
+      await _supabase.from('categorias').delete().eq('id', id);
+      
+      _mostrarSnack('Categoría "$nombre" eliminada y proveedores reasignados.', const Color(0xFF2E9E8A));
+      await _cargarDatos();
+    } catch (e) {
+      _mostrarSnack('Error al eliminar categoría: $e', Colors.red);
+    }
+  }
+
+  // --- EDITAR CATEGORÍA ---
+  Future<void> _editarCategoria(int id, String nuevoNombre) async {
+    try {
+      await _supabase.from('categorias').update({'nombre': nuevoNombre}).eq('id', id);
+      _mostrarSnack('Categoría actualizada.', const Color(0xFF2E9E8A));
+      await _cargarDatos();
+    } catch (e) {
+      _mostrarSnack('Error al actualizar categoría: $e', Colors.red);
+    }
+  }
+
+  // --- DIÁLOGO GESTIÓN CATEGORÍAS ---
+  void _abrirGestionCategorias() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Gestionar Categorías'),
+          content: SizedBox(
+            width: 300,
+            child: ListView.builder(
+              shrinkWrap: true,
+              itemCount: _categoriasCatalogo.length,
+              itemBuilder: (context, index) {
+                final cat = _categoriasCatalogo[index];
+                return ListTile(
+                  title: Text(cat['nombre']),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.edit, size: 18),
+                        onPressed: () => _dialogoEditarCategoria(cat),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.delete, size: 18, color: Colors.red),
+                        onPressed: () => _dialogoConfirmarEliminarCategoria(cat),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cerrar')),
+          ],
+        );
+      },
+    );
+  }
+
+  void _dialogoEditarCategoria(Map<String, dynamic> cat) {
+    final controller = TextEditingController(text: cat['nombre']);
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Editar Categoría'),
+        content: TextField(controller: controller, decoration: const InputDecoration(labelText: 'Nuevo nombre')),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _editarCategoria(cat['id'], controller.text);
+            },
+            child: const Text('Guardar'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _dialogoConfirmarEliminarCategoria(Map<String, dynamic> cat) {
+    int? nuevaCategoria;
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Eliminar Categoría'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('¿Seguro que deseas eliminar "${cat['nombre']}"?'),
+              const SizedBox(height: 10),
+              const Text('Reasignar proveedores a:'),
+              DropdownButton<int>(
+                value: nuevaCategoria,
+                hint: const Text('Seleccionar nueva'),
+                items: _categoriasCatalogo
+                    .where((c) => c['id'] != cat['id'])
+                    .map((c) => DropdownMenuItem(value: c['id'] as int, child: Text(c['nombre'])))
+                    .toList(),
+                onChanged: (val) => setDialogState(() => nuevaCategoria = val),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+              onPressed: () {
+                Navigator.pop(context);
+                _eliminarCategoria(cat['id'], cat['nombre'], nuevaCategoria);
+              },
+              child: const Text('Eliminar'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _mostrarSnack(String msg, Color color) {
@@ -281,6 +414,11 @@ class _ProveedoresScreenState extends State<ProveedoresScreen> {
       ),
       actions: [
         IconButton(
+          icon: Icon(Icons.category, color: primaryLight),
+          onPressed: _abrirGestionCategorias,
+          tooltip: 'Gestionar categorías',
+        ),
+        IconButton(
           icon: Icon(Icons.refresh, color: primaryLight),
           onPressed: _cargarDatos,
           tooltip: 'Recargar',
@@ -405,8 +543,8 @@ class _ProveedoresScreenState extends State<ProveedoresScreen> {
             decoration: BoxDecoration(color: primaryDark, borderRadius: const BorderRadius.vertical(top: Radius.circular(14))),
             child: Row(
               children: [
-                Expanded(flex: 20, child: _thText('CATEGORÍA / PROVEEDOR', color: borderLight)),
-                Expanded(flex: 14, child: _thText('PROVEEDOR', color: borderLight)),
+                Expanded(flex: 20, child: _thText('CATEGORÍA / EMPRESA', color: borderLight)),
+                Expanded(flex: 14, child: _thText('NOMBRE CONTACTO', color: borderLight)),
                 Expanded(flex: 14, child: _thText('TELÉFONO', color: borderLight)),
                 Expanded(flex: 10, child: _thText('ESTADO', color: borderLight, align: TextAlign.center)),
                 const SizedBox(width: 80, child: Text('DETALLE', textAlign: TextAlign.center, style: TextStyle(color: Color(0xFFADCBE3), fontSize: 9, fontWeight: FontWeight.bold, letterSpacing: 0.5))),
@@ -518,7 +656,22 @@ class _ProveedoresScreenState extends State<ProveedoresScreen> {
             ),
           ),
           Expanded(flex: 14, child: Text(prov['contacto'] ?? '-', style: TextStyle(color: textMuted, fontSize: 11))),
-          Expanded(flex: 14, child: Text(prov['telefono'] ?? '-', style: TextStyle(color: textMuted, fontSize: 11))),
+          Expanded(
+            flex: 14,
+            child: Row(
+              children: [
+                Text(prov['telefono'] ?? '-', style: TextStyle(color: textMuted, fontSize: 11)),
+                const SizedBox(width: 4),
+                GestureDetector(
+                  onTap: () {
+                    Clipboard.setData(ClipboardData(text: prov['telefono'] ?? ''));
+                    _mostrarSnack('Teléfono copiado', Colors.blue);
+                  },
+                  child: const Icon(Icons.copy, size: 12, color: Color(0xFF62A5DF)),
+                ),
+              ],
+            ),
+          ),
           Expanded(
             flex: 10,
             child: Center(

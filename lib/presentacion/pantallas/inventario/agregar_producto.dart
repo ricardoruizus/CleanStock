@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; // <-- Esencial para restringir la entrada de teclado
 import 'package:supabase_flutter/supabase_flutter.dart'; // <-- Para guardar en la base de datos
@@ -22,7 +23,27 @@ class _AgregarProductoScreenState extends State<AgregarProductoScreen> {
   final _precioController = TextEditingController();
   final _stockController = TextEditingController();
 
+  List<Map<String, dynamic>> _proveedores = [];
+  int? _proveedorSeleccionado;
+
   bool _isLoading = false; // Controla el spinner del botón
+
+  @override
+  void initState() {
+    super.initState();
+    _cargarProveedores();
+  }
+
+  Future<void> _cargarProveedores() async {
+    try {
+      final data = await Supabase.instance.client.from('proveedores').select('id, nombre');
+      setState(() {
+        _proveedores = List<Map<String, dynamic>>.from(data);
+      });
+    } catch (e) {
+      debugPrint('Error cargando proveedores: $e');
+    }
+  }
 
   @override
   void dispose() {
@@ -31,6 +52,16 @@ class _AgregarProductoScreenState extends State<AgregarProductoScreen> {
     _precioController.dispose();
     _stockController.dispose();
     super.dispose();
+  }
+
+  // --- GENERAR SKU ALEATORIO ---
+  void _generarSkuAleatorio() {
+    final random = Random();
+    // Generar un número de 13 dígitos
+    final sku = List.generate(13, (index) => index == 0 ? random.nextInt(9) + 1 : random.nextInt(10)).join();
+    setState(() {
+      _skuController.text = sku;
+    });
   }
 
   // --- FUNCIÓN PARA GUARDAR EN SUPABASE ---
@@ -54,6 +85,7 @@ class _AgregarProductoScreenState extends State<AgregarProductoScreen> {
         'sku': sku, // NUEVO
         'precio': precio,
         'stock': stock,
+        'proveedor_id': _proveedorSeleccionado,
         // Si tu tabla requiere campos extra como 'creado_en', Supabase suele generarlos por defecto.
       });
 
@@ -118,15 +150,47 @@ class _AgregarProductoScreenState extends State<AgregarProductoScreen> {
               ),
               const SizedBox(height: 16),
               // Campo: SKU
-              _buildTextField(
-                label: 'SKU',
+              TextFormField(
                 controller: _skuController,
+                style: TextStyle(color: primaryDark, fontWeight: FontWeight.w500),
+                decoration: InputDecoration(
+                  labelText: 'SKU',
+                  labelStyle: TextStyle(color: primaryDark.withValues(alpha: 0.7), fontWeight: FontWeight.w600),
+                  filled: true,
+                  fillColor: Colors.white,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: borderLight, width: 1.5)),
+                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: borderLight, width: 1.5)),
+                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: primaryLight, width: 2)),
+                  suffixIcon: IconButton(
+                    icon: Icon(Icons.refresh, color: primaryLight),
+                    onPressed: _generarSkuAleatorio,
+                    tooltip: 'Generar SKU aleatorio',
+                  ),
+                ),
                 validator: (value) {
                   if (value == null || value.trim().isEmpty) {
                     return 'Por favor ingresa el SKU';
                   }
                   return null;
                 },
+              ),
+              const SizedBox(height: 16),
+              
+              // Desplegable Proveedor
+              DropdownButtonFormField<int>(
+                decoration: InputDecoration(
+                  labelText: 'Proveedor',
+                  filled: true,
+                  fillColor: Colors.white,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: borderLight, width: 1.5)),
+                ),
+                initialValue: _proveedorSeleccionado,
+                items: _proveedores.map((prov) => DropdownMenuItem<int>(
+                  value: prov['id'] as int,
+                  child: Text(prov['nombre']),
+                )).toList(),
+                onChanged: (val) => setState(() => _proveedorSeleccionado = val),
+                validator: (value) => value == null ? 'Por favor selecciona un proveedor' : null,
               ),
               const SizedBox(height: 16),
 

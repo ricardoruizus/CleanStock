@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'dart:io';
 import '../../../servicios/ticket_servicio.dart';
+import '../../../servicios/ventas_ticket_provider.dart';
 
 class VentasScreen extends StatefulWidget {
   const VentasScreen({super.key});
@@ -11,10 +16,11 @@ class VentasScreen extends StatefulWidget {
 
 class _VentasScreenState extends State<VentasScreen> {
   final _supabase = Supabase.instance.client;
+  final _ticketProvider = VentasTicketProvider();
 
   // --- VARIABLES DE ESTADO ---
-  String _codigoInput = ""; 
-  final List<Map<String, dynamic>> _ticket = [];
+  late String _codigoInput; 
+  late List<Map<String, dynamic>> _ticket;
   
   // Catálogo real traído de la Base de Datos
   List<Map<String, dynamic>> _catalogo = [];
@@ -31,7 +37,14 @@ class _VentasScreenState extends State<VentasScreen> {
   @override
   void initState() {
     super.initState();
+    _codigoInput = _ticketProvider.codigoInput;
+    _ticket = _ticketProvider.ticket;
     _cargarCatalogoProductos();
+  }
+
+  void _updateProvider() {
+    _ticketProvider.codigoInput = _codigoInput;
+    _ticketProvider.ticket = _ticket;
   }
 
   // Carga inicial de productos desde la base de datos
@@ -65,6 +78,7 @@ class _VentasScreenState extends State<VentasScreen> {
         _codigoInput += tecla;
       }
     });
+    _updateProvider();
   }
 
   List<Map<String, dynamic>> _obtenerSugerencias() {
@@ -85,6 +99,7 @@ class _VentasScreenState extends State<VentasScreen> {
     } else {
       _mostrarSnack('SKU de producto no encontrado.', Colors.red);
     }
+    _updateProvider();
   }
 
   void _agregarAlTicket(Map<String, dynamic> producto) {
@@ -112,12 +127,14 @@ class _VentasScreenState extends State<VentasScreen> {
         }
       }
     });
+    _updateProvider();
   }
 
   void _eliminarDelTicket(int index) {
     setState(() {
       _ticket.removeAt(index);
     });
+    _updateProvider();
   }
 
   void _duplicarProducto(int index) {
@@ -129,6 +146,7 @@ class _VentasScreenState extends State<VentasScreen> {
         _mostrarSnack('No puedes agregar más de este producto. Stock límite alcanzado.', Colors.orange);
       }
     });
+    _updateProvider();
   }
 
   void _reducirProducto(int index) {
@@ -138,6 +156,7 @@ class _VentasScreenState extends State<VentasScreen> {
         item['cantidad'] -= 1;
       }
     });
+    _updateProvider();
   }
 
   // --- CONFIRMAR VENTA (GUARDADO REAL EN BASE DE DATOS) ---
@@ -147,24 +166,12 @@ class _VentasScreenState extends State<VentasScreen> {
       return;
     }
 
-    // Preguntar por el ticket
-    final bool? generarTicket = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('¿Generar Ticket?'),
-        content: const Text('¿Deseas generar el ticket de compra y compartirlo?'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('No')),
-          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Sí')),
-        ],
-      ),
-    );
-
     setState(() => _isLoadingCatalog = true);
 
     try {
       final double totalVenta = _ticket.fold(0.0, (sum, item) => sum + (item['precio'] * item['cantidad']));
       final String folioUnico = 'V-${DateTime.now().millisecondsSinceEpoch.toString().substring(5)}';
+      final List<Map<String, dynamic>> ticketSnapshot = List<Map<String, dynamic>>.from(_ticket);
 
       // 1. Insertar la venta cabecera (Maestro) en 'ventas'
       final nuevaVenta = await _supabase.from('ventas').insert({
@@ -193,10 +200,8 @@ class _VentasScreenState extends State<VentasScreen> {
         });
       }
 
-      // Generar ticket si el usuario aceptó
-      if (generarTicket == true) {
-        await TicketServicio.generarYCompartirTicket(_ticket, totalVenta, folioUnico);
-      }
+      // Generar ticket
+      final File ticketFile = await TicketServicio.generarTicketPDF(_ticket, totalVenta, folioUnico);
 
       _mostrarSnack('¡Venta $folioUnico registrada con éxito!', const Color(0xFF2E9E8A));
       
@@ -204,15 +209,96 @@ class _VentasScreenState extends State<VentasScreen> {
         _ticket.clear();
         _codigoInput = "";
       });
+      _updateProvider();
 
       // Recargar catálogo para actualizar stocks en pantalla
       await _cargarCatalogoProductos();
 
+      // Mostrar diálogo de ticket
+      _mostrarTicketDialog(ticketFile, ticketSnapshot, totalVenta, folioUnico);
+
     } catch (e) {
       _mostrarSnack('Error al procesar la venta: $e', Colors.red);
-    } finally {
       setState(() => _isLoadingCatalog = false);
     }
+  }
+
+  void _mostrarTicketDialog(File ticketFile, List<Map<String, dynamic>> ticket, double total, String folio) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: Text('Ticket: $folio'),
+        content: Container(
+            width: 300,
+            height: 300,
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(border: Border.all(color: borderLight)),
+            child: SingleChildScrollView(
+                child: _buildTicketPreview(ticket, total, folio)
+            )
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('No'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              await Share.shareXFiles([XFile(ticketFile.path)], text: 'Ticket de compra: $folio');
+            },
+            child: const Text('Compartir'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              _mostrarSnack('Ticket guardado en archivos', Colors.green);
+            },
+            child: const Text('Descargar'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+            onPressed: () async {
+              Navigator.pop(context); // Cierra el diálogo principal
+              await Share.shareXFiles(
+                [XFile(ticketFile.path)],
+                text: 'Hola, aquí tienes tu ticket de compra: $folio',
+              );
+            },
+            child: const Text('WhatsApp', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTicketPreview(List<Map<String, dynamic>> ticket, double total, String folio) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('TICKET DE VENTA', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 16)),
+        Text('Folio: $folio', style: TextStyle(color: Colors.black)),
+        const Divider(color: Colors.black),
+        Table(
+          columnWidths: const {0: FlexColumnWidth(2), 1: FlexColumnWidth(1), 2: FlexColumnWidth(1), 3: FlexColumnWidth(1)},
+          children: [
+            const TableRow(children: [
+              Text('Prod', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)), 
+              Text('Cant', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)), 
+              Text('Precio', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)), 
+              Text('Total', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold))
+            ]),
+            ...ticket.map((item) => TableRow(children: [
+              Text(item['nombre'], style: TextStyle(color: Colors.black)),
+              Text(item['cantidad'].toString(), style: TextStyle(color: Colors.black)),
+              Text(item['precio'].toStringAsFixed(2), style: TextStyle(color: Colors.black)),
+              Text((item['precio'] * item['cantidad']).toStringAsFixed(2), style: TextStyle(color: Colors.black))
+            ])),
+          ],
+        ),
+        const Divider(color: Colors.black),
+        Text('TOTAL: \$${total.toStringAsFixed(2)}', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 14)),
+      ],
+    );
   }
 
   void _mostrarSnack(String msg, Color color) {
@@ -368,7 +454,7 @@ class _VentasScreenState extends State<VentasScreen> {
 
   Widget _buildDisplayCodigo() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       decoration: BoxDecoration(
         color: Colors.white,
         border: Border.all(color: borderLight, width: 0.5),
@@ -386,6 +472,22 @@ class _VentasScreenState extends State<VentasScreen> {
                 fontWeight: _codigoInput.isEmpty ? FontWeight.normal : FontWeight.bold
               ),
             ),
+          ),
+          IconButton(
+            icon: Icon(Icons.content_paste, size: 16, color: primaryLight),
+            tooltip: 'Pegar SKU',
+            onPressed: () async {
+              final data = await Clipboard.getData(Clipboard.kTextPlain);
+              if (data?.text != null && data!.text!.isNotEmpty) {
+                setState(() {
+                  _codigoInput = data.text!;
+                });
+                _mostrarSnack('SKU pegado', Colors.blue);
+                _updateProvider();
+              } else {
+                _mostrarSnack('No hay texto en el portapapeles', Colors.orange);
+              }
+            },
           ),
         ],
       ),

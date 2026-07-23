@@ -87,7 +87,7 @@ class _CleanStockHomeScreenState extends State<CleanStockHomeScreen> {
       title: 'Registro de venta',
       subtitle: 'Nueva transacción',
       mainIcon: Icons.receipt_long_outlined,
-      badgeValue: _badgeRegistroVentas, 
+      badgeValue: null, 
       circleBgColor: const Color(0xFFECEFF1), 
       subIcons: const [Icons.edit_note_rounded, Icons.list_alt_rounded, Icons.done_all_rounded],
     ),
@@ -259,7 +259,19 @@ class _CleanStockHomeScreenState extends State<CleanStockHomeScreen> {
             Text('Bienvenido, $_nombreUsuario · CleanStock v2.0', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Color(0xFF64748B))),
           ],
         ),
-        if (_activeNavIndex == 0) SizedBox(width: 300, child: _buildSearchField()),
+        Row(
+          children: [
+            if (_activeNavIndex == 0) SizedBox(width: 300, child: _buildSearchField()),
+            const SizedBox(width: 16),
+            IconButton(
+              icon: const Icon(Icons.refresh, color: primaryColor),
+              onPressed: () async {
+                await _cargarDatosUsuario();
+                await _cargarBadges();
+              },
+            ),
+          ],
+        ),
       ],
     );
   }
@@ -325,11 +337,14 @@ class _CleanStockHomeScreenState extends State<CleanStockHomeScreen> {
           width: 52,
           height: 52,
           decoration: BoxDecoration(
-            gradient: const LinearGradient(colors: [primaryColor, accentColor], begin: Alignment.topLeft, end: Alignment.bottomRight),
+            color: Colors.white,
             borderRadius: BorderRadius.circular(16),
             boxShadow: [BoxShadow(color: primaryColor.withValues(alpha: 0.3), blurRadius: 10, offset: const Offset(0, 4))],
           ),
-          child: const Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 26),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: Image.asset('assets/logo.png', fit: BoxFit.cover),
+          ),
         ),
         const SizedBox(height: 8),
         const Text('CLEAN', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.5, color: primaryColor)),
@@ -500,14 +515,23 @@ class _CleanStockHomeScreenState extends State<CleanStockHomeScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
+          // Escalamos el logo original un poco para que quepa en la barra
+          Transform.scale(
+            scale: 0.6,
+            child: _buildAppLogo(),
+          ),
           Row(
             children: [
-              Container(width: 32, height: 32, decoration: BoxDecoration(color: primaryColor, borderRadius: BorderRadius.circular(8)), child: const Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 18)),
-              const SizedBox(width: 8),
-              const Text('CleanStock', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF1E293B))),
+              IconButton(
+                icon: const Icon(Icons.refresh, color: primaryColor),
+                onPressed: () async {
+                  await _cargarDatosUsuario();
+                  await _cargarBadges();
+                },
+              ),
+              _buildUserAvatar(),
             ],
           ),
-          _buildUserAvatar(),
         ],
       ),
     );

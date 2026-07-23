@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'agregar_producto.dart';
 
@@ -51,8 +52,10 @@ class _InventarioScreenState extends State<InventarioScreen> {
     try {
       final response = await _supabase
           .from('productos')
-          .select('id, nombre, precio, stock, sku')
+          .select('id, nombre, precio, stock, sku, proveedores!productos_proveedor_id_fkey(nombre)')
           .order('nombre', ascending: true);
+      
+      debugPrint('Respuesta Supabase cruda: $response');
 
       _productosRaw = List<Map<String, dynamic>>.from(response);
       _procesarYFiltrarDatos();
@@ -198,7 +201,7 @@ class _InventarioScreenState extends State<InventarioScreen> {
         'precio': precio,
         'stock': stock,
         'estado': estado,
-        'fecha': 'N/A', // Columna eliminada
+        'proveedores': prod['proveedores'], // Incluir datos del proveedor
         'colorBadgeBg': colorBadgeBg,
         'colorBadgeTxt': colorBadgeTxt,
         'colorIcono': colorIcono,
@@ -417,12 +420,13 @@ class _InventarioScreenState extends State<InventarioScreen> {
             decoration: BoxDecoration(color: const Color(0xFFDDEAF5), borderRadius: const BorderRadius.vertical(top: Radius.circular(12))),
             child: Row(
               children: [
-                Expanded(flex: 28, child: _thText('PRODUCTO')),
-                Expanded(flex: 12, child: _thText('SKU')),
-                Expanded(flex: 14, child: _thText('PRECIO', align: TextAlign.center)),
-                Expanded(flex: 14, child: _thText('STOCK', align: TextAlign.center)),
-                Expanded(flex: 18, child: _thText('ESTADO', align: TextAlign.center)),
-                Expanded(flex: 10, child: _thText('ACCIONES', align: TextAlign.center)),
+                Expanded(flex: 22, child: _thText('PRODUCTO')),
+                Expanded(flex: 12, child: _thText('PROVEEDOR')),
+                Expanded(flex: 10, child: _thText('SKU')),
+                Expanded(flex: 12, child: _thText('PRECIO', align: TextAlign.center)),
+                Expanded(flex: 12, child: _thText('STOCK', align: TextAlign.center)),
+                Expanded(flex: 16, child: _thText('ESTADO', align: TextAlign.center)),
+                Expanded(flex: 8, child: _thText('ACCIONES', align: TextAlign.center)),
               ],
             ),
           ),
@@ -476,6 +480,8 @@ class _InventarioScreenState extends State<InventarioScreen> {
     if (prod['estado'] == 'Bajo stock') iconEstado = Icons.arrow_drop_up;
     if (prod['estado'] == 'Agotado') iconEstado = Icons.close;
 
+    final nombreProveedor = prod['proveedores'] != null ? prod['proveedores']['nombre'] : 'Sin proveedor';
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
@@ -485,7 +491,7 @@ class _InventarioScreenState extends State<InventarioScreen> {
       child: Row(
         children: [
           Expanded(
-            flex: 28,
+            flex: 22,
             child: Row(
               children: [
                 Container(
@@ -498,20 +504,34 @@ class _InventarioScreenState extends State<InventarioScreen> {
               ],
             ),
           ),
+          Expanded(flex: 12, child: Text(nombreProveedor, textAlign: TextAlign.center, style: TextStyle(color: textMuted, fontSize: 11))),
           Expanded(
-            flex: 12,
-            child: Text(prod['sku'] ?? 'N/A', textAlign: TextAlign.center, style: TextStyle(color: textMuted, fontSize: 12)),
+            flex: 10,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(prod['sku'] ?? 'N/A', textAlign: TextAlign.center, style: TextStyle(color: textMuted, fontSize: 12)),
+                const SizedBox(width: 4),
+                GestureDetector(
+                  onTap: () {
+                    Clipboard.setData(ClipboardData(text: prod['sku'] ?? ''));
+                    _mostrarSnack('SKU copiado', Colors.blue);
+                  },
+                  child: const Icon(Icons.copy, size: 12, color: Color(0xFF62A5DF)),
+                ),
+              ],
+            ),
           ),
           Expanded(
-            flex: 14,
+            flex: 12,
             child: Text('\$${prod['precio'].toStringAsFixed(2)}', textAlign: TextAlign.center, style: TextStyle(color: primaryDark, fontSize: 12)),
           ),
           Expanded(
-            flex: 14,
+            flex: 12,
             child: Text('${prod['stock']} uds', textAlign: TextAlign.center, style: TextStyle(color: primaryDark, fontSize: 12)),
           ),
           Expanded(
-            flex: 18,
+            flex: 16,
             child: Center(
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -528,7 +548,7 @@ class _InventarioScreenState extends State<InventarioScreen> {
             ),
           ),
           Expanded(
-            flex: 10,
+            flex: 8,
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [

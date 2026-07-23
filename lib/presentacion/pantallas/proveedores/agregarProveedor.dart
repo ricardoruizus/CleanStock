@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// Pantalla reutilizable para agregar o editar un proveedor.
@@ -158,18 +159,21 @@ class _ProveedorFormScreenState extends State<ProveedorFormScreen> {
                   children: [
                     TextFormField(
                       controller: _nombreCtrl,
-                      decoration: const InputDecoration(labelText: 'Nombre', border: OutlineInputBorder()),
+                      decoration: const InputDecoration(labelText: 'Empresa', border: OutlineInputBorder()),
                       validator: (val) => (val?.isEmpty ?? true) ? 'Obligatorio' : null,
                     ),
                     const SizedBox(height: 16),
                     TextFormField(
                       controller: _contactoCtrl,
-                      decoration: const InputDecoration(labelText: 'Empresa', border: OutlineInputBorder()),
+                      decoration: const InputDecoration(labelText: 'Nombre', border: OutlineInputBorder()),
                     ),
                     const SizedBox(height: 16),
                     TextFormField(
                       controller: _telefonoCtrl,
-                      decoration: const InputDecoration(labelText: 'Teléfono', border: OutlineInputBorder()),
+                      keyboardType: TextInputType.phone,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                      maxLength: 10,
+                      decoration: const InputDecoration(labelText: 'Teléfono', border: OutlineInputBorder(), counterText: ""),
                     ),
                     const SizedBox(height: 16),
                     DropdownButtonFormField<int>(

@@ -448,15 +448,11 @@ class _LoginPantallaState extends State<LoginPantalla> {
                       width: 80,
                       height: 80,
                       decoration: BoxDecoration(
-                        color: const Color(0xFF62A5DF), 
-                        borderRadius: BorderRadius.circular(22), 
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(0xFF62A5DF).withValues(alpha: 0.3), 
-                            blurRadius: 16, 
-                            offset: const Offset(0, 8), 
-                          ),
-                        ],
+                        borderRadius: BorderRadius.circular(22),
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(22),
+                        child: Image.asset('assets/logo.png', fit: BoxFit.cover),
                       ),
                     ),
                     const SizedBox(height: 16), 
