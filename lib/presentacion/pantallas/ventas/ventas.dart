@@ -1,11 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'dart:io';
 import '../../../servicios/ticket_servicio.dart';
-import '../../../servicios/ventas_ticket_provider.dart';
 
 class VentasScreen extends StatefulWidget {
   const VentasScreen({super.key});
@@ -16,11 +13,10 @@ class VentasScreen extends StatefulWidget {
 
 class _VentasScreenState extends State<VentasScreen> {
   final _supabase = Supabase.instance.client;
-  final _ticketProvider = VentasTicketProvider();
 
   // --- VARIABLES DE ESTADO ---
-  late String _codigoInput; 
-  late List<Map<String, dynamic>> _ticket;
+  String _codigoInput = ""; 
+  final List<Map<String, dynamic>> _ticket = [];
   
   // Catálogo real traído de la Base de Datos
   List<Map<String, dynamic>> _catalogo = [];
@@ -37,14 +33,7 @@ class _VentasScreenState extends State<VentasScreen> {
   @override
   void initState() {
     super.initState();
-    _codigoInput = _ticketProvider.codigoInput;
-    _ticket = _ticketProvider.ticket;
     _cargarCatalogoProductos();
-  }
-
-  void _updateProvider() {
-    _ticketProvider.codigoInput = _codigoInput;
-    _ticketProvider.ticket = _ticket;
   }
 
   // Carga inicial de productos desde la base de datos
@@ -78,7 +67,6 @@ class _VentasScreenState extends State<VentasScreen> {
         _codigoInput += tecla;
       }
     });
-    _updateProvider();
   }
 
   List<Map<String, dynamic>> _obtenerSugerencias() {
@@ -99,7 +87,6 @@ class _VentasScreenState extends State<VentasScreen> {
     } else {
       _mostrarSnack('SKU de producto no encontrado.', Colors.red);
     }
-    _updateProvider();
   }
 
   void _agregarAlTicket(Map<String, dynamic> producto) {
@@ -127,14 +114,12 @@ class _VentasScreenState extends State<VentasScreen> {
         }
       }
     });
-    _updateProvider();
   }
 
   void _eliminarDelTicket(int index) {
     setState(() {
       _ticket.removeAt(index);
     });
-    _updateProvider();
   }
 
   void _duplicarProducto(int index) {
@@ -146,7 +131,6 @@ class _VentasScreenState extends State<VentasScreen> {
         _mostrarSnack('No puedes agregar más de este producto. Stock límite alcanzado.', Colors.orange);
       }
     });
-    _updateProvider();
   }
 
   void _reducirProducto(int index) {
@@ -156,7 +140,6 @@ class _VentasScreenState extends State<VentasScreen> {
         item['cantidad'] -= 1;
       }
     });
-    _updateProvider();
   }
 
   // --- CONFIRMAR VENTA (GUARDADO REAL EN BASE DE DATOS) ---
@@ -209,7 +192,6 @@ class _VentasScreenState extends State<VentasScreen> {
         _ticket.clear();
         _codigoInput = "";
       });
-      _updateProvider();
 
       // Recargar catálogo para actualizar stocks en pantalla
       await _cargarCatalogoProductos();
@@ -454,7 +436,7 @@ class _VentasScreenState extends State<VentasScreen> {
 
   Widget _buildDisplayCodigo() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
       decoration: BoxDecoration(
         color: Colors.white,
         border: Border.all(color: borderLight, width: 0.5),
@@ -472,22 +454,6 @@ class _VentasScreenState extends State<VentasScreen> {
                 fontWeight: _codigoInput.isEmpty ? FontWeight.normal : FontWeight.bold
               ),
             ),
-          ),
-          IconButton(
-            icon: Icon(Icons.content_paste, size: 16, color: primaryLight),
-            tooltip: 'Pegar SKU',
-            onPressed: () async {
-              final data = await Clipboard.getData(Clipboard.kTextPlain);
-              if (data?.text != null && data!.text!.isNotEmpty) {
-                setState(() {
-                  _codigoInput = data.text!;
-                });
-                _mostrarSnack('SKU pegado', Colors.blue);
-                _updateProvider();
-              } else {
-                _mostrarSnack('No hay texto en el portapapeles', Colors.orange);
-              }
-            },
           ),
         ],
       ),

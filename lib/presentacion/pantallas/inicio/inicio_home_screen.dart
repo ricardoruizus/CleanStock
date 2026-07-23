@@ -87,7 +87,7 @@ class _CleanStockHomeScreenState extends State<CleanStockHomeScreen> {
       title: 'Registro de venta',
       subtitle: 'Nueva transacción',
       mainIcon: Icons.receipt_long_outlined,
-      badgeValue: null, 
+      badgeValue: _badgeRegistroVentas, 
       circleBgColor: const Color(0xFFECEFF1), 
       subIcons: const [Icons.edit_note_rounded, Icons.list_alt_rounded, Icons.done_all_rounded],
     ),
