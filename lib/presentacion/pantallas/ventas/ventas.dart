@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:share_plus/share_plus.dart';
 import 'dart:io';
 import '../../../servicios/ticket_servicio.dart';
+import '../../../servicios/ventas_ticket_provider.dart';
 
 class VentasScreen extends StatefulWidget {
   const VentasScreen({super.key});
@@ -13,10 +15,11 @@ class VentasScreen extends StatefulWidget {
 
 class _VentasScreenState extends State<VentasScreen> {
   final _supabase = Supabase.instance.client;
+  final _provider = VentasTicketProvider();
 
   // --- VARIABLES DE ESTADO ---
-  String _codigoInput = ""; 
-  final List<Map<String, dynamic>> _ticket = [];
+  late String _codigoInput;
+  late List<Map<String, dynamic>> _ticket;
   
   // Catálogo real traído de la Base de Datos
   List<Map<String, dynamic>> _catalogo = [];
@@ -33,7 +36,16 @@ class _VentasScreenState extends State<VentasScreen> {
   @override
   void initState() {
     super.initState();
+    _codigoInput = _provider.codigoInput;
+    _ticket = _provider.ticket;
     _cargarCatalogoProductos();
+  }
+
+  @override
+  void dispose() {
+    _provider.codigoInput = _codigoInput;
+    _provider.ticket = _ticket;
+    super.dispose();
   }
 
   // Carga inicial de productos desde la base de datos
@@ -54,6 +66,15 @@ class _VentasScreenState extends State<VentasScreen> {
   }
 
   // --- LÓGICA DE NEGOCIO ---
+
+  Future<void> _pegarDesdePortapapeles() async {
+    final data = await Clipboard.getData(Clipboard.kTextPlain);
+    if (data?.text != null) {
+      setState(() {
+        _codigoInput = data!.text!;
+      });
+    }
+  }
 
   void _teclaPresionada(String tecla) {
     setState(() {
@@ -454,6 +475,11 @@ class _VentasScreenState extends State<VentasScreen> {
                 fontWeight: _codigoInput.isEmpty ? FontWeight.normal : FontWeight.bold
               ),
             ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.content_paste, size: 18, color: Colors.blueGrey),
+            onPressed: _pegarDesdePortapapeles,
+            tooltip: 'Pegar SKU',
           ),
         ],
       ),
